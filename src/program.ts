@@ -17,6 +17,9 @@ const formatError = (error: unknown): string => {
   return String(error);
 };
 
+/** ISO timestamp for log lines. */
+const ts = (): string => new Date().toISOString();
+
 // ── Public interface ────────────────────────────────────────────────────────
 
 /**
@@ -29,6 +32,8 @@ export interface Program<T, E> {
   /**
    * Run with full process lifecycle management.
    *
+   * Logs program start and errors automatically.
+   *
    * - SIGINT / SIGTERM fire the `AbortSignal` passed to the effect
    * - Second signal force-exits (code 130)
    * - `Ok` -> `process.exit(0)`
@@ -39,6 +44,7 @@ export interface Program<T, E> {
 
   /**
    * Execute without process lifecycle. Returns the raw {@link Result}.
+   * No logging, no signals, no exit. Use for testing.
    *
    * Accepts an optional `AbortSignal` for cancellation in tests.
    */
@@ -48,35 +54,35 @@ export interface Program<T, E> {
 // ── Factory ─────────────────────────────────────────────────────────────────
 
 /**
- * Create a {@link Program} from a {@link Task} or an effect function.
+ * Create a named {@link Program} from a {@link Task} or an effect function.
  *
  * When given a function, it receives an `AbortSignal` wired to
  * SIGINT/SIGTERM so the effect can respond to graceful shutdown.
  *
+ * `.run()` automatically logs program start, errors, and interrupts.
+ *
  * @example
  * ```ts
- * // Simple: wrap an existing Task
- * const main = Program(Task.of('done'));
- * main.run();
- *
- * // With signal for graceful shutdown
- * const main = Program((signal) =>
+ * const main = Program('my-service', (signal) =>
  *   pipe(
  *     loadConfig(),
  *     Task.flatMap(cfg => startServer(cfg, { signal })),
  *   )
  * );
  * main.run();
- *
- * // Testing (no process.exit, returns Result)
- * const result = await main.execute();
+ * // [2026-03-16T10:00:00.000Z] [my-service] started
+ * // ... on error:
+ * // [2026-03-16T10:00:01.234Z] [my-service] error: NotFound(NOT_FOUND): User not found
  * ```
  */
 export function Program<T, E>(
+  name: string,
   effect: Task<T, E> | ((signal: AbortSignal) => Task<T, E>),
 ): Program<T, E> {
   const toTask: (signal: AbortSignal) => Task<T, E> =
     typeof effect === 'function' ? effect : () => effect;
+
+  const tag = `[${name}]`;
 
   return {
     async run(): Promise<void> {
@@ -86,25 +92,29 @@ export function Program<T, E>(
       const onSignal = (): void => {
         if (interrupted) process.exit(130);
         interrupted = true;
+        console.error(`${ts()} ${tag} interrupted`);
         ac.abort();
       };
 
       process.on('SIGINT', onSignal);
       process.on('SIGTERM', onSignal);
 
+      console.log(`${ts()} ${tag} started`);
+
       try {
         const result = await toTask(ac.signal).run();
 
         if (result.isOk) {
+          console.log(`${ts()} ${tag} completed`);
           process.exit(0);
         } else if (interrupted) {
           process.exit(130);
         } else {
-          console.error(formatError(result.unwrapErr()));
+          console.error(`${ts()} ${tag} error: ${formatError(result.unwrapErr())}`);
           process.exit(1);
         }
       } catch (unhandled: unknown) {
-        console.error(formatError(unhandled));
+        console.error(`${ts()} ${tag} error: ${formatError(unhandled)}`);
         process.exit(1);
       } finally {
         process.off('SIGINT', onSignal);

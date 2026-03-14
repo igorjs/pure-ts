@@ -78,14 +78,16 @@ const UserSchema = Schema.object({
 })
 UserSchema.parse(jsonData)                   // Result<ImmutableRecord<User>, SchemaError>
 
-// Program entrypoint: errors as values all the way to process.exit
-const main = Program((signal) =>
+// Program entrypoint: auto-logs start/errors, handles signals
+const main = Program('my-service', (signal) =>
   pipe(
     loadConfig(),
     Task.flatMap(cfg => startServer(cfg, { signal })),
   )
 )
-main.run()                                   // Ok -> exit 0, Err -> stderr + exit 1
+main.run()
+// [2026-03-16T10:00:00.000Z] [my-service] started
+// [2026-03-16T10:00:01.234Z] [my-service] completed
 ```
 
 ## API
@@ -210,10 +212,10 @@ main.run()                                   // Ok -> exit 0, Err -> stderr + ex
 
 | Method | Description |
 |---|---|
-| `Program(task)` | Create program from a Task |
-| `Program((signal) => task)` | Create program with AbortSignal wired to SIGINT/SIGTERM |
-| `.run()` | Execute with process lifecycle: signals, exit codes, stderr |
-| `.execute(signal?)` | Execute for testing: returns `Result`, no `process.exit` |
+| `Program(name, task)` | Create named program from a Task |
+| `Program(name, (signal) => task)` | Create named program with AbortSignal wired to SIGINT/SIGTERM |
+| `.run()` | Execute with process lifecycle: auto-logs start/errors, signals, exit codes |
+| `.execute(signal?)` | Execute for testing: returns `Result`, no logging or `process.exit` |
 
 ### Utilities
 

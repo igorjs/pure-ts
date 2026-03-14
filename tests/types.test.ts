@@ -385,10 +385,11 @@ const _tryRes: Result<number, string> = tryCatch(() => 42, String);
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Program from Task preserves types
-const _progTask: ProgramType<number, never> = Program(Task.of(42));
+const _progTask: ProgramType<number, never> = Program('test', Task.of(42));
 
 // Program from effect function preserves types
 const _progFn: ProgramType<string, string> = Program(
+  'test',
   (_signal: AbortSignal) => new Task<string, string>(async () => Ok('done'))
 );
 

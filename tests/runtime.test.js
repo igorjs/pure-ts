@@ -989,28 +989,28 @@ describe('tryCatch (standalone)', () => {
 
 describe('Program', () => {
   it('execute() returns Ok result from Task', async () => {
-    const prog = Program(Task.of(42));
+    const prog = Program('test-ok', Task.of(42));
     const result = await prog.execute();
     assert.equal(result.isOk, true);
     assert.equal(result.unwrap(), 42);
   });
 
   it('execute() returns Err result from Task', async () => {
-    const prog = Program(Task.fromResult(Err('fail')));
+    const prog = Program('test-err', Task.fromResult(Err('fail')));
     const result = await prog.execute();
     assert.equal(result.isErr, true);
     assert.equal(result.unwrapErr(), 'fail');
   });
 
   it('execute() accepts effect function', async () => {
-    const prog = Program(() => Task.of('hello'));
+    const prog = Program('test-fn', () => Task.of('hello'));
     const result = await prog.execute();
     assert.equal(result.unwrap(), 'hello');
   });
 
   it('execute() passes AbortSignal to effect', async () => {
     const ac = new AbortController();
-    const prog = Program((signal) =>
+    const prog = Program('test-signal', (signal) =>
       new Task(async () => Ok(signal.aborted))
     );
 
@@ -1023,7 +1023,7 @@ describe('Program', () => {
   });
 
   it('execute() provides default signal when none given', async () => {
-    const prog = Program((signal) =>
+    const prog = Program('test-default-signal', (signal) =>
       new Task(async () => Ok(signal instanceof AbortSignal))
     );
     const result = await prog.execute();
@@ -1032,13 +1032,13 @@ describe('Program', () => {
 
   it('execute() can be called multiple times', async () => {
     let count = 0;
-    const prog = Program(() => new Task(async () => Ok(++count)));
+    const prog = Program('test-multi', () => new Task(async () => Ok(++count)));
     assert.equal((await prog.execute()).unwrap(), 1);
     assert.equal((await prog.execute()).unwrap(), 2);
   });
 
   it('execute() works with Task pipelines', async () => {
-    const prog = Program(() =>
+    const prog = Program('test-pipe', () =>
       Task.of(10)
         .map(n => n * 2)
         .flatMap(n => n > 15 ? Task.of(n) : Task.fromResult(Err('too small')))
@@ -1049,7 +1049,7 @@ describe('Program', () => {
 
   it('execute() works with ErrType errors', async () => {
     const AppError = ErrType('AppError');
-    const prog = Program(() =>
+    const prog = Program('test-errtype', () =>
       Task.fromResult(AppError('something broke').toResult())
     );
     const result = await prog.execute();
