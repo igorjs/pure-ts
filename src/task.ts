@@ -104,6 +104,70 @@ export class Task<T, E> {
   }
 
   /**
+   * Cache the result of the first `.run()`. Subsequent calls return the
+   * same Promise (and therefore the same Result). The original thunk is
+   * released for GC after execution, mirroring `Lazy<T>`.
+   *
+   * @example
+   * ```ts
+   * const config = Task.fromPromise(() => loadConfig()).memoize();
+   * await config.run(); // executes
+   * await config.run(); // returns cached Result
+   * ```
+   */
+  memoize(): Task<T, E> {
+    let cached: Promise<Result<T, E>> | null = null;
+    let thunk: (() => Promise<Result<T, E>>) | null = this._run;
+    return new Task(() => {
+      if (cached !== null) return cached;
+      cached = thunk!();
+      thunk = null;
+      return cached;
+    });
+  }
+
+  /**
+   * Race this task against a timeout. If the task does not complete
+   * within `ms` milliseconds, returns `Err(onTimeout())`.
+   *
+   * @example
+   * ```ts
+   * fetchUser.timeout(5000, () => 'timeout').run();
+   * ```
+   */
+  timeout(ms: number, onTimeout: () => E): Task<T, E> {
+    return new Task(() =>
+      Promise.race([
+        this._run(),
+        new Promise<Result<T, E>>(resolve =>
+          setTimeout(() => resolve(Err(onTimeout())), ms),
+        ),
+      ]),
+    );
+  }
+
+  /**
+   * Retry the task up to `attempts` times, with optional `delay` (ms)
+   * between attempts. Returns the last Result if all attempts fail.
+   *
+   * @example
+   * ```ts
+   * fetchUser.retry(3, 100).run(); // 3 attempts, 100ms between
+   * ```
+   */
+  retry(attempts: number, delay?: number): Task<T, E> {
+    return new Task(async () => {
+      let last: Result<T, E> = await this._run();
+      for (let i = 1; i < attempts && last.isErr; i++) {
+        if (delay !== undefined && delay > 0)
+          await new Promise<void>(resolve => setTimeout(resolve, delay));
+        last = await this._run();
+      }
+      return last;
+    });
+  }
+
+  /**
    * Create a Task from a plain value. Always succeeds.
    *
    * @example
@@ -161,5 +225,32 @@ export class Task<T, E> {
       const results = await Promise.all(tasks.map(t => t.run()));
       return collectResults(results);
     });
+  }
+
+  /**
+   * Race all tasks. The first to settle wins.
+   *
+   * @example
+   * ```ts
+   * Task.race([fetchFromCache, fetchFromApi]).run();
+   * ```
+   */
+  static race<T, E>(tasks: readonly Task<T, E>[]): Task<T, E> {
+    return new Task(() => Promise.race(tasks.map(t => t.run())));
+  }
+
+  /**
+   * Run all tasks in parallel and collect every Result (never short-circuits).
+   *
+   * @example
+   * ```ts
+   * Task.allSettled([task1, task2]).run();
+   * // -> Ok([Ok(1), Err('x')])
+   * ```
+   */
+  static allSettled<T, E>(
+    tasks: readonly Task<T, E>[],
+  ): Task<readonly Result<T, E>[], never> {
+    return new Task(async () => Ok(await Promise.all(tasks.map(t => t.run()))));
   }
 }

@@ -230,6 +230,22 @@ const _lm: Lazy<string> = lazy.map(String);
 const task = new Task<number, string>(async () => Ok(42));
 const _tm: Task<string, string> = task.map(String);
 
+// Task.memoize preserves types
+const _memoized: Task<number, string> = task.memoize();
+
+// Task.timeout preserves T, uses same E
+const _timed: Task<number, string> = task.timeout(1000, () => 'timeout');
+
+// Task.retry preserves types
+const _retried: Task<number, string> = task.retry(3);
+const _retriedDelay: Task<number, string> = task.retry(3, 100);
+
+// Task.race preserves types
+const _raced: Task<number, string> = Task.race([task]);
+
+// Task.allSettled -> Task<readonly Result[], never>
+const _settled: Task<readonly Result<number, string>[], never> = Task.allSettled([task]);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // List.clone - types preserved
 // ═══════════════════════════════════════════════════════════════════════════════

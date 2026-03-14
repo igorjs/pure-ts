@@ -697,6 +697,102 @@ describe('Task', () => {
     assert.equal(a, 1);
     assert.equal(b, 2);
   });
+
+  it('memoize caches result', async () => {
+    let count = 0;
+    const task = new Task(async () => { count++; return Ok(42); }).memoize();
+    const a = await task.run();
+    const b = await task.run();
+    assert.equal(a.unwrap(), 42);
+    assert.equal(b.unwrap(), 42);
+    assert.equal(count, 1);
+  });
+
+  it('memoize with error', async () => {
+    let count = 0;
+    const task = new Task(async () => { count++; return Err('fail'); }).memoize();
+    const a = await task.run();
+    const b = await task.run();
+    assert.equal(a.isErr, true);
+    assert.equal(b.isErr, true);
+    assert.equal(count, 1);
+  });
+
+  it('memoize concurrent runs share same promise', async () => {
+    let count = 0;
+    const task = new Task(async () => {
+      count++;
+      await new Promise(r => setTimeout(r, 10));
+      return Ok(count);
+    }).memoize();
+    const [a, b] = await Promise.all([task.run(), task.run()]);
+    assert.equal(a.unwrap(), 1);
+    assert.equal(b.unwrap(), 1);
+    assert.equal(count, 1);
+  });
+
+  it('timeout succeeds before deadline', async () => {
+    const task = new Task(async () => Ok('fast')).timeout(1000, () => 'timeout');
+    const result = await task.run();
+    assert.equal(result.unwrap(), 'fast');
+  });
+
+  it('timeout fires error on deadline', async () => {
+    const task = new Task(async () => {
+      await new Promise(r => setTimeout(r, 200));
+      return Ok('slow');
+    }).timeout(10, () => 'timeout');
+    const result = await task.run();
+    assert.equal(result.isErr, true);
+    assert.equal(result.unwrapErr(), 'timeout');
+  });
+
+  it('retry succeeds on second attempt', async () => {
+    let attempt = 0;
+    const task = new Task(async () => {
+      attempt++;
+      return attempt < 2 ? Err('fail') : Ok('ok');
+    }).retry(3);
+    const result = await task.run();
+    assert.equal(result.unwrap(), 'ok');
+    assert.equal(attempt, 2);
+  });
+
+  it('retry exhausts attempts', async () => {
+    let attempt = 0;
+    const task = new Task(async () => {
+      attempt++;
+      return Err(`fail-${attempt}`);
+    }).retry(3);
+    const result = await task.run();
+    assert.equal(result.isErr, true);
+    assert.equal(result.unwrapErr(), 'fail-3');
+    assert.equal(attempt, 3);
+  });
+
+  it('Task.race first settled wins', async () => {
+    const slow = new Task(async () => {
+      await new Promise(r => setTimeout(r, 200));
+      return Ok('slow');
+    });
+    const fast = new Task(async () => Ok('fast'));
+    const result = await Task.race([slow, fast]).run();
+    assert.equal(result.unwrap(), 'fast');
+  });
+
+  it('Task.allSettled collects all', async () => {
+    const result = await Task.allSettled([
+      Task.of(1),
+      Task.fromResult(Err('x')),
+      Task.of(3),
+    ]).run();
+    assert.equal(result.isOk, true);
+    const settled = result.unwrap();
+    assert.equal(settled.length, 3);
+    assert.equal(settled[0].unwrap(), 1);
+    assert.equal(settled[1].isErr, true);
+    assert.equal(settled[2].unwrap(), 3);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

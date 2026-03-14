@@ -226,7 +226,12 @@ main.run()
 | `Lazy(() => expr)` | Deferred and cached computation. `.value` triggers evaluation |
 | `Task(async () => ...)` | Composable async Result. `.run()` executes. Supports `map`, `flatMap`, `tap`, `tapErr`, `unwrapOr`, `zip` |
 | `Task.of(v)` / `Task.fromResult(r)` / `Task.fromPromise(fn)` | Task constructors |
-| `Task.all([...])` | Run tasks in parallel, collect results |
+| `Task.all([...])` | Run tasks in parallel, collect results. Short-circuits on first error |
+| `Task.race([...])` | First settled task wins |
+| `Task.allSettled([...])` | Run all tasks, collect every `Result` (never short-circuits) |
+| `.memoize()` | Cache result of first `.run()`. Concurrent calls share the same Promise |
+| `.timeout(ms, onTimeout)` | Race against a deadline. Returns `Err(onTimeout())` if exceeded |
+| `.retry(attempts, delay?)` | Retry on error up to N times with optional delay between attempts |
 | `Type<'Name', Base>` | Nominal typing, zero runtime. `type UserId = Type<'UserId', string>` |
 | `match(value, arms)` | Standalone pattern match for Result or Option |
 | `tryCatch(fn, onError)` | Standalone alias for `Result.tryCatch` |

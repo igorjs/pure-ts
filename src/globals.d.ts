@@ -38,6 +38,12 @@ declare const process: {
 };
 
 /**
+ * WHATWG Timer API. Available in all JS runtimes (Node, Deno, Bun, browsers).
+ * Not part of ECMAScript but universally available.
+ */
+declare function setTimeout(callback: () => void, ms?: number): number;
+
+/**
  * Console API (WHATWG). Available in all JS runtimes.
  */
 declare const console: {
