@@ -11,10 +11,13 @@
 
 import {
   Record, List, Schema,
-  Ok, Err, Some, None, fromNullable, collectResults,
+  Ok, Err, Some, None, Result, Option,
+  match, tryCatch,
   pipe, flow, Lazy, Task,
-  type Result, type Option, type Type,
+  TaggedError, isTaggedError,
+  type Type,
   type ImmutableRecord, type ImmutableList, type SchemaType,
+  type TaggedErrorInstance, type TaggedErrorConstructor,
 } from '../src/index.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -231,3 +234,146 @@ const _tm: Task<string, string> = task.map(String);
 
 const cloned: ImmutableList<{ id: number }> = List.clone([{ id: 1 }]);
 const _clonedId: number = cloned[0]!.id;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TaggedError - literal type narrowing
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const NotFound = TaggedError('NotFound', 'NOT_FOUND');
+const Forbidden = TaggedError('Forbidden', 'FORBIDDEN');
+
+// Constructor type is inferred
+const _ctor: TaggedErrorConstructor<'NotFound', 'NOT_FOUND'> = NotFound;
+
+// Instance has literal types on tag and code
+const nfErr = NotFound('gone');
+const _nfTag: 'NotFound' = nfErr.tag;
+const _nfName: 'NotFound' = nfErr.name;
+const _nfCode: 'NOT_FOUND' = nfErr.code;
+const _nfMsg: string = nfErr.message;
+const _nfMeta: Readonly<Record<string, unknown>> = nfErr.metadata;
+const _nfTs: number = nfErr.timestamp;
+const _nfStack: string | undefined = nfErr.stack;
+
+// @ts-expect-error - tag literal mismatch
+const _wrongTag: 'Forbidden' = nfErr.tag;
+
+// @ts-expect-error - code literal mismatch
+const _wrongCode: 'FORBIDDEN' = nfErr.code;
+
+// toResult() preserves error type
+const _nfResult: Result<string, TaggedErrorInstance<'NotFound', 'NOT_FOUND'>> = nfErr.toResult<string>();
+
+// Discriminated union narrowing via switch on tag
+type AppError =
+  | TaggedErrorInstance<'NotFound', 'NOT_FOUND'>
+  | TaggedErrorInstance<'Forbidden', 'FORBIDDEN'>;
+
+const appErr: AppError = nfErr;
+switch (appErr.tag) {
+  case 'NotFound': {
+    const _c: 'NOT_FOUND' = appErr.code;
+    break;
+  }
+  case 'Forbidden': {
+    const _c: 'FORBIDDEN' = appErr.code;
+    break;
+  }
+}
+
+// Constructor.is() narrows
+declare const unknownErr: AppError;
+if (NotFound.is(unknownErr)) {
+  const _narrowedTag: 'NotFound' = unknownErr.tag;
+  const _narrowedCode: 'NOT_FOUND' = unknownErr.code;
+}
+
+// isTaggedError() general guard
+declare const mystery: unknown;
+if (isTaggedError(mystery)) {
+  const _t: string = mystery.tag;
+  const _c: string = mystery.code;
+  const _m: string = mystery.message;
+}
+
+// Constructor.tag and .code are literal types
+const _ctorTag: 'NotFound' = NotFound.tag;
+const _ctorCode: 'NOT_FOUND' = NotFound.code;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Result namespace - static utilities
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Result.Ok / Result.Err produce correct types
+const _nsOk: Result<number, never> = Result.Ok(42);
+const _nsErr: Result<never, string> = Result.Err('fail');
+
+// Result.tryCatch returns Result
+const _nsTry: Result<number, string> = Result.tryCatch(() => 42, String);
+
+// Result.collect returns Result of readonly array
+const _nsCollect: Result<readonly number[], string> = Result.collect([Ok(1), Ok(2)]);
+
+// Result.is is a type guard
+declare const _unknownVal: unknown;
+if (Result.is(_unknownVal)) {
+  const _guarded: Result<unknown, unknown> = _unknownVal;
+}
+
+// Result.match infers return type
+const _nsMatch: string = Result.match(Ok(42) as Result<number, string>, {
+  Ok: v => String(v),
+  Err: e => e,
+});
+
+// Result works in both type and value positions simultaneously
+const _typePos: Result<number, string> = Ok(1);
+const _valuePos: boolean = Result.is(_typePos);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Option namespace - static utilities
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Option.Some / Option.None produce correct types
+const _nsSome: Option<number> = Option.Some(42);
+const _nsNone: Option<never> = Option.None;
+
+// Option.fromNullable returns Option
+const _nsFrom: Option<string> = Option.fromNullable('hello' as string | null);
+
+// Option.collect returns Option of readonly array
+const _nsOptCollect: Option<readonly number[]> = Option.collect([Some(1), Some(2)]);
+
+// Option.is is a type guard
+if (Option.is(_unknownVal)) {
+  const _guarded: Option<unknown> = _unknownVal;
+}
+
+// Option.match infers return type
+const _nsOptMatch: number = Option.match(Some(42), {
+  Some: v => v * 2,
+  None: () => 0,
+});
+
+// Option works in both type and value positions simultaneously
+const _optTypePos: Option<number> = Some(1);
+const _optValuePos: boolean = Option.is(_optTypePos);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Standalone aliases: match, tryCatch
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// match() infers return type for Result
+const _matchRes: string = match(Ok(42) as Result<number, string>, {
+  Ok: v => String(v),
+  Err: e => e,
+});
+
+// match() infers return type for Option
+const _matchOpt: number = match(Some(42), {
+  Some: v => v * 2,
+  None: () => 0,
+});
+
+// tryCatch returns Result
+const _tryRes: Result<number, string> = tryCatch(() => 42, String);

@@ -12,9 +12,11 @@ import assert from 'node:assert/strict';
 
 const {
   Record, List, Schema,
-  Ok, Err, Some, None, fromNullable, collectResults, collectOptions, tryCatch,
+  Ok, Err, Some, None, Result, Option,
+  match, tryCatch,
   pipe, flow, Lazy, Task,
   isImmutable,
+  TaggedError, isTaggedError,
 } = await import('../dist/index.js');
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -300,8 +302,8 @@ describe('Result', () => {
   });
 
   it('match', () => {
-    assert.equal(Ok(42).match({ ok: v => v * 2, err: () => -1 }), 84);
-    assert.equal(Err('x').match({ ok: () => 0, err: e => e }), 'x');
+    assert.equal(Ok(42).match({ Ok: v => v * 2, Err: () => -1 }), 84);
+    assert.equal(Err('x').match({ Ok: () => 0, Err: e => e }), 'x');
   });
 
   it('zip', () => {
@@ -325,20 +327,38 @@ describe('Result', () => {
     assert.equal(Err('x').toOption().isNone, true);
   });
 
-  it('collectResults', () => {
-    assert.deepEqual(collectResults([Ok(1), Ok(2), Ok(3)]).unwrap(), [1, 2, 3]);
-    assert.equal(collectResults([Ok(1), Err('x'), Ok(3)]).isErr, true);
+  it('Result.collect', () => {
+    assert.deepEqual(Result.collect([Ok(1), Ok(2), Ok(3)]).unwrap(), [1, 2, 3]);
+    assert.equal(Result.collect([Ok(1), Err('x'), Ok(3)]).isErr, true);
   });
 
-  it('collectResults with empty array', () => {
-    const result = collectResults([]);
+  it('Result.collect with empty array', () => {
+    const result = Result.collect([]);
     assert.equal(result.isOk, true);
     assert.deepEqual(result.unwrap(), []);
   });
 
-  it('tryCatch', () => {
-    assert.equal(tryCatch(() => 42).unwrap(), 42);
-    assert.equal(tryCatch(() => { throw new Error('boom'); }, e => e.message).unwrapErr(), 'boom');
+  it('Result.tryCatch', () => {
+    assert.equal(Result.tryCatch(() => 42).unwrap(), 42);
+    assert.equal(Result.tryCatch(() => { throw new Error('boom'); }, e => e.message).unwrapErr(), 'boom');
+  });
+
+  it('Result.Ok / Result.Err aliases', () => {
+    assert.equal(Result.Ok(42).unwrap(), 42);
+    assert.equal(Result.Err('fail').unwrapErr(), 'fail');
+  });
+
+  it('Result.match standalone', () => {
+    assert.equal(Result.match(Ok(42), { Ok: v => v * 2, Err: () => -1 }), 84);
+    assert.equal(Result.match(Err('x'), { Ok: () => 0, Err: e => e }), 'x');
+  });
+
+  it('Result.is type guard', () => {
+    assert.equal(Result.is(Ok(1)), true);
+    assert.equal(Result.is(Err('x')), true);
+    assert.equal(Result.is(Some(1)), false);
+    assert.equal(Result.is(42), false);
+    assert.equal(Result.is(null), false);
   });
 
   it('toString/toJSON', () => {
@@ -389,8 +409,8 @@ describe('Option', () => {
   });
 
   it('match', () => {
-    assert.equal(Some(42).match({ some: v => v, none: () => -1 }), 42);
-    assert.equal(None.match({ some: () => 0, none: () => -1 }), -1);
+    assert.equal(Some(42).match({ Some: v => v, None: () => -1 }), 42);
+    assert.equal(None.match({ Some: () => 0, None: () => -1 }), -1);
   });
 
   it('zip/or', () => {
@@ -415,23 +435,41 @@ describe('Option', () => {
     assert.equal(None.toResult('missing').unwrapErr(), 'missing');
   });
 
-  it('fromNullable', () => {
-    assert.equal(fromNullable('hello').unwrap(), 'hello');
-    assert.equal(fromNullable(null).isNone, true);
-    assert.equal(fromNullable(undefined).isNone, true);
-    assert.equal(fromNullable(0).unwrap(), 0);
-    assert.equal(fromNullable('').unwrap(), '');
+  it('Option.fromNullable', () => {
+    assert.equal(Option.fromNullable('hello').unwrap(), 'hello');
+    assert.equal(Option.fromNullable(null).isNone, true);
+    assert.equal(Option.fromNullable(undefined).isNone, true);
+    assert.equal(Option.fromNullable(0).unwrap(), 0);
+    assert.equal(Option.fromNullable('').unwrap(), '');
   });
 
-  it('collectOptions', () => {
-    assert.deepEqual(collectOptions([Some(1), Some(2)]).unwrap(), [1, 2]);
-    assert.equal(collectOptions([Some(1), None]).isNone, true);
+  it('Option.collect', () => {
+    assert.deepEqual(Option.collect([Some(1), Some(2)]).unwrap(), [1, 2]);
+    assert.equal(Option.collect([Some(1), None]).isNone, true);
   });
 
-  it('collectOptions with empty array', () => {
-    const result = collectOptions([]);
+  it('Option.collect with empty array', () => {
+    const result = Option.collect([]);
     assert.equal(result.isSome, true);
     assert.deepEqual(result.unwrap(), []);
+  });
+
+  it('Option.Some / Option.None aliases', () => {
+    assert.equal(Option.Some(42).unwrap(), 42);
+    assert.equal(Option.None.isNone, true);
+  });
+
+  it('Option.match standalone', () => {
+    assert.equal(Option.match(Some(42), { Some: v => v * 2, None: () => -1 }), 84);
+    assert.equal(Option.match(None, { Some: () => 0, None: () => -1 }), -1);
+  });
+
+  it('Option.is type guard', () => {
+    assert.equal(Option.is(Some(1)), true);
+    assert.equal(Option.is(None), true);
+    assert.equal(Option.is(Ok(1)), false);
+    assert.equal(Option.is(42), false);
+    assert.equal(Option.is(null), false);
   });
 
   it('toString/toJSON', () => {
@@ -782,5 +820,151 @@ describe('deepEqual edge cases', () => {
     const c = Record({ data: [1, [2, 4]] });
     assert.equal(a.equals(b), true);
     assert.equal(a.equals(c), false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TaggedError
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('TaggedError', () => {
+  const NotFound = TaggedError('NotFound', 'NOT_FOUND');
+  const Forbidden = TaggedError('Forbidden', 'FORBIDDEN');
+
+  it('constructor produces frozen error with correct fields', () => {
+    const err = NotFound('User not found', { userId: 'u_123' });
+    assert.equal(err.tag, 'NotFound');
+    assert.equal(err.name, 'NotFound');
+    assert.equal(err.code, 'NOT_FOUND');
+    assert.equal(err.message, 'User not found');
+    assert.deepEqual(err.metadata, { userId: 'u_123' });
+    assert.equal(typeof err.timestamp, 'number');
+    assert.equal(Object.isFrozen(err), true);
+  });
+
+  it('tag/name/code match defined values', () => {
+    const err = Forbidden('Access denied');
+    assert.equal(err.tag, 'Forbidden');
+    assert.equal(err.name, 'Forbidden');
+    assert.equal(err.code, 'FORBIDDEN');
+  });
+
+  it('metadata defaults to empty object when omitted', () => {
+    const err = NotFound('gone');
+    assert.deepEqual(err.metadata, {});
+    assert.equal(Object.isFrozen(err.metadata), true);
+  });
+
+  it('metadata is deep frozen', () => {
+    const err = NotFound('gone', { nested: { value: 1 } });
+    assert.throws(() => { err.metadata.nested.value = 2; }, TypeError);
+  });
+
+  it('timestamp is a recent epoch ms number', () => {
+    const before = Date.now();
+    const err = NotFound('gone');
+    const after = Date.now();
+    assert.equal(err.timestamp >= before, true);
+    assert.equal(err.timestamp <= after, true);
+  });
+
+  it('stack is always captured as a string', () => {
+    const err = NotFound('gone');
+    assert.equal(typeof err.stack, 'string');
+  });
+
+  it('toJSON() excludes stack, includes all other fields', () => {
+    const err = NotFound('User not found', { userId: 'u_123' });
+    const json = err.toJSON();
+    assert.equal(json.tag, 'NotFound');
+    assert.equal(json.name, 'NotFound');
+    assert.equal(json.code, 'NOT_FOUND');
+    assert.equal(json.message, 'User not found');
+    assert.deepEqual(json.metadata, { userId: 'u_123' });
+    assert.equal(typeof json.timestamp, 'number');
+    assert.equal('stack' in json, false);
+  });
+
+  it('toString() formats as Tag(CODE): message', () => {
+    const err = NotFound('User not found');
+    assert.equal(err.toString(), 'NotFound(NOT_FOUND): User not found');
+  });
+
+  it('toResult() wraps in Err', () => {
+    const err = NotFound('gone');
+    const result = err.toResult();
+    assert.equal(result.isErr, true);
+    assert.equal(result.unwrapErr(), err);
+  });
+
+  it('isTaggedError() returns true for instances', () => {
+    const err = NotFound('gone');
+    assert.equal(isTaggedError(err), true);
+  });
+
+  it('isTaggedError() returns false for plain objects/null/primitives', () => {
+    assert.equal(isTaggedError(null), false);
+    assert.equal(isTaggedError(undefined), false);
+    assert.equal(isTaggedError(42), false);
+    assert.equal(isTaggedError('string'), false);
+    assert.equal(isTaggedError({ tag: 'X' }), false);
+    assert.equal(isTaggedError({ tag: 'X', code: 'Y', message: 'z' }), false);
+  });
+
+  it('Constructor.is() matches specific error type', () => {
+    const err = NotFound('gone');
+    assert.equal(NotFound.is(err), true);
+    assert.equal(Forbidden.is(err), false);
+  });
+
+  it('Constructor.is() rejects non-TaggedError values', () => {
+    assert.equal(NotFound.is(null), false);
+    assert.equal(NotFound.is({ tag: 'NotFound', code: 'NOT_FOUND' }), false);
+  });
+
+  it('Constructor.tag and .code are readable', () => {
+    assert.equal(NotFound.tag, 'NotFound');
+    assert.equal(NotFound.code, 'NOT_FOUND');
+    assert.equal(Forbidden.tag, 'Forbidden');
+    assert.equal(Forbidden.code, 'FORBIDDEN');
+  });
+
+  it('error instance is frozen (property assignment throws)', () => {
+    const err = NotFound('gone');
+    assert.throws(() => { err.tag = 'Other'; }, TypeError);
+    assert.throws(() => { err.message = 'changed'; }, TypeError);
+  });
+
+  it('composes with Result.match()', () => {
+    const err = NotFound('gone');
+    const result = err.toResult();
+    const output = result.match({
+      Ok: () => 'ok',
+      Err: e => `${e.tag}: ${e.message}`,
+    });
+    assert.equal(output, 'NotFound: gone');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Standalone aliases: match, tryCatch
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('match (standalone)', () => {
+  it('matches Result', () => {
+    assert.equal(match(Ok(42), { Ok: v => v * 2, Err: () => -1 }), 84);
+    assert.equal(match(Err('x'), { Ok: () => 0, Err: e => e }), 'x');
+  });
+
+  it('matches Option', () => {
+    assert.equal(match(Some(42), { Some: v => v * 2, None: () => -1 }), 84);
+    assert.equal(match(None, { Some: () => 0, None: () => -1 }), -1);
+  });
+});
+
+describe('tryCatch (standalone)', () => {
+  it('catches and wraps', () => {
+    assert.equal(tryCatch(() => 42).unwrap(), 42);
+    assert.equal(tryCatch(() => { throw new Error('boom'); }, e => e.message).unwrapErr(), 'boom');
   });
 });

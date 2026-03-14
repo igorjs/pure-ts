@@ -22,8 +22,8 @@ export type Result<T, E> = OkImpl<T, E> | ErrImpl<T, E>;
 
 /** Pattern-match arms for {@link Result.match}. */
 export interface ResultMatcher<T, E, U> {
-  readonly ok: (value: T) => U;
-  readonly err: (error: E) => U;
+  readonly Ok: (value: T) => U;
+  readonly Err: (error: E) => U;
 }
 
 interface ResultMethods<T, E> {
@@ -78,7 +78,7 @@ export class OkImpl<T, E> implements ResultMethods<T, E> {
   /** Throws: there is no error to extract from `Ok`. */
   unwrapErr(): never { throw new TypeError(`unwrapErr called on Ok(${String(this.value)})`); }
   /** Exhaustively handle both variants. */
-  match<U>(m: ResultMatcher<T, E, U>): U { return m.ok(this.value); }
+  match<U>(m: ResultMatcher<T, E, U>): U { return m.Ok(this.value); }
   /** Convert to `Some(value)`. */
   toOption(): Option<T> { return Some(this.value); }
 
@@ -140,7 +140,7 @@ export class ErrImpl<T, E> implements ResultMethods<T, E> {
   /** Extract the error value. */
   unwrapErr(): E { return this.error; }
   /** Exhaustively handle both variants. */
-  match<U>(m: ResultMatcher<T, E, U>): U { return m.err(this.error); }
+  match<U>(m: ResultMatcher<T, E, U>): U { return m.Err(this.error); }
   /** Convert to `None` (the success value is absent). */
   toOption(): Option<T> { return None; }
   /** Short-circuit: propagate this `Err`. */
@@ -210,4 +210,35 @@ export const collectResults = <T, E>(results: readonly Result<T, E>[]): Result<r
 export const tryCatch = <T, E = unknown>(fn: () => T, onError?: (e: unknown) => E): Result<T, E> => {
   try { return Ok(fn()); }
   catch (e) { return Err(onError ? onError(e) : e as E); }
+};
+
+/**
+ * Namespace object providing static utilities on {@link Result}.
+ *
+ * TypeScript merges the `type Result<T, E>` (type position) with this
+ * `const Result` (value position), giving a Rust/Java-style `Result.tryCatch()`
+ * experience.
+ *
+ * @example
+ * ```ts
+ * Result.tryCatch(() => JSON.parse(raw), String)
+ * Result.collect([Ok(1), Ok(2)])
+ * Result.is(someValue)
+ * ```
+ */
+export const Result: {
+  readonly Ok: <T>(value: T) => Result<T, never>;
+  readonly Err: <E>(error: E) => Result<never, E>;
+  readonly tryCatch: <T, E = unknown>(fn: () => T, onError?: (e: unknown) => E) => Result<T, E>;
+  readonly collect: <T, E>(results: readonly Result<T, E>[]) => Result<readonly T[], E>;
+  readonly match: <T, E, U>(result: Result<T, E>, matcher: ResultMatcher<T, E, U>) => U;
+  readonly is: (value: unknown) => value is Result<unknown, unknown>;
+} = {
+  Ok,
+  Err,
+  tryCatch,
+  collect: collectResults,
+  match: <T, E, U>(result: Result<T, E>, matcher: ResultMatcher<T, E, U>): U => result.match(matcher),
+  is: (value): value is Result<unknown, unknown> =>
+    value instanceof OkImpl || value instanceof ErrImpl,
 };

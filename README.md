@@ -5,7 +5,9 @@ Immutability micro-framework for TypeScript. Functional programming primitives. 
 ```ts
 import {
   Record, List, Ok, Err, Some, None,
-  Schema, pipe, flow, Lazy, Task
+  Result, Option, match, tryCatch,
+  Schema, pipe, flow, Lazy, Task,
+  TaggedError, isTaggedError
 } from '@igorjs/pure-ts'
 ```
 
@@ -62,7 +64,12 @@ Err('fail').map(n => n * 2).unwrapOr(0)      // 0
 
 // Option monad: null safety
 Some(42).filter(n => n > 100)                // None
-fromNullable(process.env.PORT)               // Some('3000') or None
+Option.fromNullable(process.env.PORT)        // Some('3000') or None
+
+// Structured errors as values
+const NotFound = TaggedError('NotFound', 'NOT_FOUND')
+const err = NotFound('User not found', { userId: 'u_123' })
+err.toResult()                                // Result<never, TaggedErrorInstance<...>>
 
 // Schema validation -> immutable output
 const UserSchema = Schema.object({
@@ -118,10 +125,14 @@ UserSchema.parse(jsonData)                   // Result<ImmutableRecord<User>, Sc
 | Method | Description |
 |---|---|
 | `Ok(value)` / `Err(error)` | Construct |
+| `Result.tryCatch(fn, onError)` | Wrap throwing code |
+| `Result.collect([...])` | All-or-nothing collection |
+| `Result.match(result, { Ok, Err })` | Standalone pattern match |
+| `Result.is(value)` | Type guard for any Result |
 | `.map(fn)` / `.mapErr(fn)` | Transform value/error |
 | `.flatMap(fn)` | Chain fallible operations |
 | `.tap(fn)` / `.tapErr(fn)` | Side effects (no-op on wrong variant) |
-| `.match({ ok, err })` | Exhaustive pattern match |
+| `.match({ Ok, Err })` | Exhaustive pattern match |
 | `.unwrap()` | Extract or throw `TypeError` |
 | `.unwrapOr(fallback)` / `.unwrapOrElse(fn)` | Extract with fallback |
 | `.unwrapErr()` | Extract error or throw `TypeError` |
@@ -130,18 +141,37 @@ UserSchema.parse(jsonData)                   // Result<ImmutableRecord<User>, Sc
 | `.toOption()` | -> `Option<T>` (drops error) |
 | `.toJSON()` | `{ tag: 'Ok', value }` or `{ tag: 'Err', error }` |
 | `.toString()` | `'Ok(42)'` or `'Err(fail)'` |
-| `collectResults([...])` | All-or-nothing collection |
-| `tryCatch(fn, onError)` | Wrap throwing code |
+
+### TaggedError
+
+| Export | Description |
+|---|---|
+| `TaggedError(tag, code)` | Define a reusable error constructor. Returns a callable with `.tag`, `.code`, `.is()` |
+| `constructor(message, metadata?)` | Create a frozen error instance with tag, code, message, metadata, timestamp, stack |
+| `.tag` / `.name` | Literal string discriminant (same value) |
+| `.code` | Literal string code |
+| `.message` | Human-readable description |
+| `.metadata` | Deep-frozen `Record<string, unknown>` (defaults `{}`) |
+| `.timestamp` | Epoch milliseconds at construction |
+| `.stack` | Stack trace string (V8 `captureStackTrace` where available, `Error().stack` fallback) |
+| `.toResult<T>()` | Wrap in `Err(this)` -> `Result<T, TaggedErrorInstance>` |
+| `.toJSON()` | Serialise all fields except `stack` |
+| `.toString()` | `'Tag(CODE): message'` |
+| `Constructor.is(value)` | Type guard for specific error type |
+| `isTaggedError(value)` | Type guard for any TaggedError instance |
 
 ### Option\<T\>
 
 | Method | Description |
 |---|---|
 | `Some(value)` / `None` | Construct |
-| `fromNullable(v)` | `null`/`undefined` -> `None`, else `Some` |
+| `Option.fromNullable(v)` | `null`/`undefined` -> `None`, else `Some` |
+| `Option.collect([...])` | All-or-nothing collection |
+| `Option.match(option, { Some, None })` | Standalone pattern match |
+| `Option.is(value)` | Type guard for any Option |
 | `.map(fn)` / `.flatMap(fn)` / `.filter(fn)` | Transform |
 | `.tap(fn)` | Side effect on Some (no-op on None) |
-| `.match({ some, none })` | Exhaustive pattern match |
+| `.match({ Some, None })` | Exhaustive pattern match |
 | `.unwrap()` | Extract or throw `TypeError` |
 | `.unwrapOr(v)` / `.unwrapOrElse(fn)` | Extract with fallback |
 | `.zip(other)` / `.or(other)` | Combine |
@@ -149,7 +179,6 @@ UserSchema.parse(jsonData)                   // Result<ImmutableRecord<User>, Sc
 | `.toResult(error)` | -> `Result<T, E>` |
 | `.toJSON()` | `{ tag: 'Some', value }` or `{ tag: 'None' }` |
 | `.toString()` | `'Some(42)'` or `'None'` |
-| `collectOptions([...])` | All-or-nothing collection |
 
 ### Schema
 
@@ -178,6 +207,8 @@ UserSchema.parse(jsonData)                   // Result<ImmutableRecord<User>, Sc
 | `Task.of(v)` / `Task.fromResult(r)` / `Task.fromPromise(fn)` | Task constructors |
 | `Task.all([...])` | Run tasks in parallel, collect results |
 | `Type<'Name', Base>` | Nominal typing, zero runtime. `type UserId = Type<'UserId', string>` |
+| `match(value, arms)` | Standalone pattern match for Result or Option |
+| `tryCatch(fn, onError)` | Standalone alias for `Result.tryCatch` |
 | `isImmutable(val)` | Type guard for Records and Lists |
 | `DeepReadonly<T>` | Recursive readonly type utility |
 

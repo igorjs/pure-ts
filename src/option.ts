@@ -21,8 +21,8 @@ export type Option<T> = SomeImpl<T> | NoneImpl<T>;
 
 /** Pattern-match arms for {@link Option.match}. */
 export interface OptionMatcher<T, U> {
-  readonly some: (value: T) => U;
-  readonly none: () => U;
+  readonly Some: (value: T) => U;
+  readonly None: () => U;
 }
 
 interface OptionMethods<T> {
@@ -72,7 +72,7 @@ export class SomeImpl<T> implements OptionMethods<T> {
   /** Return the value, ignoring the recovery function. */
   unwrapOrElse(_fn: () => T): T { return this.value; }
   /** Exhaustively handle both variants. */
-  match<U>(m: OptionMatcher<T, U>): U { return m.some(this.value); }
+  match<U>(m: OptionMatcher<T, U>): U { return m.Some(this.value); }
   /** Convert to `Ok(value)`. */
   toResult<E>(_error: E): Result<T, E> { return Ok(this.value); }
   /** Combine two `Some` values into a tuple, short-circuiting on `None`. */
@@ -124,7 +124,7 @@ export class NoneImpl<T> implements OptionMethods<T> {
   /** Compute and return the fallback since this is `None`. */
   unwrapOrElse(fn: () => T): T { return fn(); }
   /** Exhaustively handle both variants. */
-  match<U>(m: OptionMatcher<T, U>): U { return m.none(); }
+  match<U>(m: OptionMatcher<T, U>): U { return m.None(); }
   /** Convert to `Err(error)` since the value is absent. */
   toResult<E>(error: E): Result<T, E> { return Err(error); }
   /** Short-circuit: return `None`. */
@@ -188,4 +188,35 @@ export const collectOptions = <T>(options: readonly Option<T>[]): Option<readonl
     values.push((o as SomeImpl<T>).value);
   }
   return Some(values);
+};
+
+/**
+ * Namespace object providing static utilities on {@link Option}.
+ *
+ * TypeScript merges the `type Option<T>` (type position) with this
+ * `const Option` (value position), giving a Rust/Java-style `Option.fromNullable()`
+ * experience.
+ *
+ * @example
+ * ```ts
+ * Option.fromNullable(input)
+ * Option.collect([Some(1), Some(2)])
+ * Option.is(someValue)
+ * ```
+ */
+export const Option: {
+  readonly Some: <T>(value: T) => Option<T>;
+  readonly None: Option<never>;
+  readonly fromNullable: <T>(value: T | null | undefined) => Option<T>;
+  readonly collect: <T>(options: readonly Option<T>[]) => Option<readonly T[]>;
+  readonly match: <T, U>(option: Option<T>, matcher: OptionMatcher<T, U>) => U;
+  readonly is: (value: unknown) => value is Option<unknown>;
+} = {
+  Some,
+  None,
+  fromNullable,
+  collect: collectOptions,
+  match: <T, U>(option: Option<T>, matcher: OptionMatcher<T, U>): U => option.match(matcher),
+  is: (value): value is Option<unknown> =>
+    value instanceof SomeImpl || value instanceof NoneImpl,
 };
