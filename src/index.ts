@@ -19,11 +19,11 @@
  * Zero dependencies. Methods live on prototypes. GC-friendly.
  */
 
-import type { Result, ResultMatcher } from './result.js';
 import type { Option, OptionMatcher } from './option.js';
+import type { Result, ResultMatcher } from './result.js';
 
-export { Result, type ResultMatcher, Ok, Err, tryCatch } from './result.js';
-export { Option, type OptionMatcher, Some, None } from './option.js';
+export { None, Option, type OptionMatcher, Some } from './option.js';
+export { Err, Ok, Result, type ResultMatcher, tryCatch } from './result.js';
 
 /**
  * Universal pattern match for {@link Result} and {@link Option}.
@@ -42,14 +42,14 @@ export function match<T, U>(value: Option<T>, matcher: OptionMatcher<T, U>): U;
 export function match(value: { match(m: object): unknown }, matcher: object): unknown {
   return value.match(matcher);
 }
-export { pipe, flow } from './pipe.js';
-export { Lazy } from './lazy.js';
-export { Task } from './task.js';
-export { type Type } from './nominal.js';
-export { type DeepReadonly } from './internals.js';
-export { type RecordMethods, type ImmutableRecord } from './record.js';
-export { type ListMethods, type ImmutableList } from './list.js';
-export { Record, List, isImmutable } from './constructors.js';
-export { type SchemaError, type SchemaType, Schema } from './schema.js';
+export { isImmutable, List, Record } from './constructors.js';
 export { ErrType, type ErrTypeConstructor } from './error.js';
+export type { DeepReadonly } from './internals.js';
+export { Lazy } from './lazy.js';
+export type { ImmutableList, ListMethods } from './list.js';
+export type { Type } from './nominal.js';
+export { flow, pipe } from './pipe.js';
 export { Program } from './program.js';
+export type { ImmutableRecord, RecordMethods } from './record.js';
+export { Schema, type SchemaError, type SchemaType } from './schema.js';
+export { Task } from './task.js';

@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import type { Result } from './result.js';
-import { Ok, Err, ErrImpl, collectResults } from './result.js';
+import { collectResults, Err, type ErrImpl, Ok } from './result.js';
 
 /**
  * Composable async computation that produces `Result<T, E>`.
@@ -40,7 +40,7 @@ export class Task<T, E> {
   map<U>(fn: (value: T) => U): Task<U, E> {
     return new Task(async () => {
       const r = await this._run();
-      return r.isOk ? Ok(fn(r.value)) : r as unknown as Result<U, E>;
+      return r.isOk ? Ok(fn(r.value)) : (r as unknown as Result<U, E>);
     });
   }
 
@@ -48,7 +48,7 @@ export class Task<T, E> {
   mapErr<F>(fn: (error: E) => F): Task<T, F> {
     return new Task(async () => {
       const r = await this._run();
-      return r.isErr ? Err(fn((r as ErrImpl<T, E>).error)) : r as unknown as Result<T, F>;
+      return r.isErr ? Err(fn((r as ErrImpl<T, E>).error)) : (r as unknown as Result<T, F>);
     });
   }
 
@@ -139,9 +139,7 @@ export class Task<T, E> {
     return new Task(() =>
       Promise.race([
         this._run(),
-        new Promise<Result<T, E>>(resolve =>
-          setTimeout(() => resolve(Err(onTimeout())), ms),
-        ),
+        new Promise<Result<T, E>>(resolve => setTimeout(() => resolve(Err(onTimeout())), ms)),
       ]),
     );
   }
@@ -206,8 +204,11 @@ export class Task<T, E> {
     onError?: (e: unknown) => E,
   ): Task<T, E> {
     return new Task(async () => {
-      try { return Ok(await promise()); }
-      catch (e) { return Err(onError ? onError(e) : e as E); }
+      try {
+        return Ok(await promise());
+      } catch (e) {
+        return Err(onError ? onError(e) : (e as E));
+      }
     });
   }
 
@@ -248,9 +249,7 @@ export class Task<T, E> {
    * // -> Ok([Ok(1), Err('x')])
    * ```
    */
-  static allSettled<T, E>(
-    tasks: readonly Task<T, E>[],
-  ): Task<readonly Result<T, E>[], never> {
+  static allSettled<T, E>(tasks: readonly Task<T, E>[]): Task<readonly Result<T, E>[], never> {
     return new Task(async () => Ok(await Promise.all(tasks.map(t => t.run()))));
   }
 }

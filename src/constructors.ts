@@ -2,8 +2,8 @@
 // Public Constructors
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import { type ImmutableRecord, createRecord } from './record.js';
-import { type ImmutableList, createListProxy } from './list.js';
+import { createListProxy, type ImmutableList } from './list.js';
+import { createRecord, type ImmutableRecord } from './record.js';
 
 /**
  * Create an immutable record from a plain object.
@@ -18,8 +18,7 @@ import { type ImmutableList, createListProxy } from './list.js';
  * const older = user.update(u => u.age, a => a + 1);
  * ```
  */
-export const Record = <T extends object>(obj: T): ImmutableRecord<T> =>
-  createRecord(obj);
+export const Record = <T extends object>(obj: T): ImmutableRecord<T> => createRecord(obj);
 
 /**
  * Create an immutable record from a deep clone of the input.
@@ -34,8 +33,7 @@ export const Record = <T extends object>(obj: T): ImmutableRecord<T> =>
  * source.name = 'Mutated'; // safe.name is still 'External'
  * ```
  */
-Record.clone = <T extends object>(obj: T): ImmutableRecord<T> =>
-  createRecord(structuredClone(obj));
+Record.clone = <T extends object>(obj: T): ImmutableRecord<T> => createRecord(structuredClone(obj));
 
 /**
  * Create an immutable list from an array.
@@ -50,8 +48,7 @@ Record.clone = <T extends object>(obj: T): ImmutableRecord<T> =>
  * const sorted = nums.sortBy((a, b) => a - b);
  * ```
  */
-export const List = <T>(items: readonly T[]): ImmutableList<T> =>
-  createListProxy(items);
+export const List = <T>(items: readonly T[]): ImmutableList<T> => createListProxy(items);
 
 /**
  * Create an immutable list from a deep clone of the input.
@@ -77,5 +74,10 @@ List.clone = <T>(items: readonly T[]): ImmutableList<T> =>
  * isImmutable({});                  // false
  * ```
  */
-export const isImmutable = (val: unknown): val is ImmutableRecord<object> | ImmutableList<unknown> =>
-  val !== null && typeof val === 'object' && '$immutable' in val && (val as Record<string, unknown>)['$immutable'] === true;
+export const isImmutable = (
+  val: unknown,
+): val is ImmutableRecord<object> | ImmutableList<unknown> =>
+  val !== null &&
+  typeof val === 'object' &&
+  '$immutable' in val &&
+  (val as Record<string, unknown>)['$immutable'] === true;

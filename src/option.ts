@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import type { Result } from './result.js';
-import { Ok, Err } from './result.js';
+import { Err, Ok } from './result.js';
 
 /**
  * A discriminated union representing a value that may or may not exist.
@@ -38,7 +38,7 @@ interface OptionMethods<T> {
   zip<U>(other: Option<U>): Option<[T, U]>;
   ap<U>(fnOption: Option<(value: T) => U>): Option<U>;
   or(_other: Option<T>): Option<T>;
-  toJSON(): { tag: 'Some'; value: T } | { tag: 'None' }
+  toJSON(): { tag: 'Some'; value: T } | { tag: 'None' };
   toString(): string;
 }
 
@@ -54,27 +54,50 @@ export class SomeImpl<T> implements OptionMethods<T> {
   readonly tag = 'Some' as const;
   constructor(readonly value: T) {}
 
-  get isSome(): true { return true; }
-  get isNone(): false { return false; }
+  get isSome(): true {
+    return true;
+  }
+  get isNone(): false {
+    return false;
+  }
 
   /** Apply `fn` to the value, returning a new `Some`. */
-  map<U>(fn: (value: T) => U): Option<U> { return new SomeImpl(fn(this.value)); }
+  map<U>(fn: (value: T) => U): Option<U> {
+    return new SomeImpl(fn(this.value));
+  }
   /** Chain into a dependent computation that may produce `None`. */
-  flatMap<U>(fn: (value: T) => Option<U>): Option<U> { return fn(this.value); }
+  flatMap<U>(fn: (value: T) => Option<U>): Option<U> {
+    return fn(this.value);
+  }
   /** Keep the value only if `predicate` holds, otherwise return `None`. */
-  filter(predicate: (value: T) => boolean): Option<T> { return predicate(this.value) ? this : None; }
+  filter(predicate: (value: T) => boolean): Option<T> {
+    return predicate(this.value) ? this : None;
+  }
   /** Run a side-effect on the value without altering the Option. */
-  tap(fn: (value: T) => void): Option<T> { fn(this.value); return this; }
+  tap(fn: (value: T) => void): Option<T> {
+    fn(this.value);
+    return this;
+  }
   /** Extract the value. */
-  unwrap(): T { return this.value; }
+  unwrap(): T {
+    return this.value;
+  }
   /** Return the value, ignoring the fallback. */
-  unwrapOr(_fallback: T): T { return this.value; }
+  unwrapOr(_fallback: T): T {
+    return this.value;
+  }
   /** Return the value, ignoring the recovery function. */
-  unwrapOrElse(_fn: () => T): T { return this.value; }
+  unwrapOrElse(_fn: () => T): T {
+    return this.value;
+  }
   /** Exhaustively handle both variants. */
-  match<U>(m: OptionMatcher<T, U>): U { return m.Some(this.value); }
+  match<U>(m: OptionMatcher<T, U>): U {
+    return m.Some(this.value);
+  }
   /** Convert to `Ok(value)`. */
-  toResult<E>(_error: E): Result<T, E> { return Ok(this.value); }
+  toResult<E>(_error: E): Result<T, E> {
+    return Ok(this.value);
+  }
   /** Combine two `Some` values into a tuple, short-circuiting on `None`. */
   zip<U>(other: Option<U>): Option<[T, U]> {
     return other.isSome ? new SomeImpl([this.value, (other as SomeImpl<U>).value]) : None;
@@ -86,13 +109,21 @@ export class SomeImpl<T> implements OptionMethods<T> {
    * If `fnOption` is `None`, returns `None`.
    */
   ap<U>(fnOption: Option<(value: T) => U>): Option<U> {
-    return fnOption.isSome ? new SomeImpl((fnOption as SomeImpl<(value: T) => U>).value(this.value)) : None;
+    return fnOption.isSome
+      ? new SomeImpl((fnOption as SomeImpl<(value: T) => U>).value(this.value))
+      : None;
   }
   /** Return this `Some`, ignoring the alternative. */
-  or(_other: Option<T>): Option<T> { return this; }
+  or(_other: Option<T>): Option<T> {
+    return this;
+  }
   /** Serialise as `{ tag: 'Some', value: T }`. */
-  toJSON(): { tag: 'Some'; value: T } { return { tag: 'Some', value: this.value }; }
-  toString(): string { return `Some(${String(this.value)})`; }
+  toJSON(): { tag: 'Some'; value: T } {
+    return { tag: 'Some', value: this.value };
+  }
+  toString(): string {
+    return `Some(${String(this.value)})`;
+  }
 }
 
 /**
@@ -106,36 +137,68 @@ export class SomeImpl<T> implements OptionMethods<T> {
 export class NoneImpl<T> implements OptionMethods<T> {
   readonly tag = 'None' as const;
 
-  get isSome(): false { return false; }
-  get isNone(): true { return true; }
+  get isSome(): false {
+    return false;
+  }
+  get isNone(): true {
+    return true;
+  }
 
   /** No-op on `None`. */
-  map<U>(_fn: (value: T) => U): Option<U> { return None; }
+  map<U>(_fn: (value: T) => U): Option<U> {
+    return None;
+  }
   /** No-op on `None`. */
-  flatMap<U>(_fn: (value: T) => Option<U>): Option<U> { return None; }
+  flatMap<U>(_fn: (value: T) => Option<U>): Option<U> {
+    return None;
+  }
   /** No-op on `None`. */
-  filter(_predicate: (value: T) => boolean): Option<T> { return None; }
+  filter(_predicate: (value: T) => boolean): Option<T> {
+    return None;
+  }
   /** No-op on `None`. */
-  tap(_fn: (value: T) => void): Option<T> { return None; }
+  tap(_fn: (value: T) => void): Option<T> {
+    return None;
+  }
   /** Throws: there is no value to extract from `None`. */
-  unwrap(): never { throw new TypeError('unwrap called on None'); }
+  unwrap(): never {
+    throw new TypeError('unwrap called on None');
+  }
   /** Return the fallback since this is `None`. */
-  unwrapOr(fallback: T): T { return fallback; }
+  unwrapOr(fallback: T): T {
+    return fallback;
+  }
   /** Compute and return the fallback since this is `None`. */
-  unwrapOrElse(fn: () => T): T { return fn(); }
+  unwrapOrElse(fn: () => T): T {
+    return fn();
+  }
   /** Exhaustively handle both variants. */
-  match<U>(m: OptionMatcher<T, U>): U { return m.None(); }
+  match<U>(m: OptionMatcher<T, U>): U {
+    return m.None();
+  }
   /** Convert to `Err(error)` since the value is absent. */
-  toResult<E>(error: E): Result<T, E> { return Err(error); }
+  toResult<E>(error: E): Result<T, E> {
+    return Err(error);
+  }
   /** Short-circuit: return `None`. */
-  zip<U>(_other: Option<U>): Option<[T, U]> { return None; }
+  zip<U>(_other: Option<U>): Option<[T, U]> {
+    return None;
+  }
   /** Short-circuit: return `None`. */
-  ap<U>(_fnOption: Option<(value: T) => U>): Option<U> { return None; }
+  ap<U>(_fnOption: Option<(value: T) => U>): Option<U> {
+    return None;
+  }
   /** Return the alternative since this is `None`. */
-  or(other: Option<T>): Option<T> { return other; }
+  or(other: Option<T>): Option<T> {
+    return other;
+  }
   /** Serialise as `{ tag: 'None' }`. */
-  toJSON(): { tag: 'None' } { return { tag: 'None' }; }
-  toString(): string { return 'None'; }
+  toJSON(): { tag: 'None' } {
+    return { tag: 'None' };
+  }
+  toString(): string {
+    return 'None';
+  }
 }
 
 /**
@@ -182,8 +245,7 @@ export const fromNullable = <T>(value: T | null | undefined): Option<T> =>
  */
 export const collectOptions = <T>(options: readonly Option<T>[]): Option<readonly T[]> => {
   const values: T[] = [];
-  for (let i = 0; i < options.length; i++) {
-    const o = options[i]!;
+  for (const o of options) {
     if (o.isNone) return None;
     values.push((o as SomeImpl<T>).value);
   }
@@ -217,6 +279,5 @@ export const Option: {
   fromNullable,
   collect: collectOptions,
   match: <T, U>(option: Option<T>, matcher: OptionMatcher<T, U>): U => option.match(matcher),
-  is: (value): value is Option<unknown> =>
-    value instanceof SomeImpl || value instanceof NoneImpl,
+  is: (value): value is Option<unknown> => value instanceof SomeImpl || value instanceof NoneImpl,
 };

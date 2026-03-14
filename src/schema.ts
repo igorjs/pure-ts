@@ -2,10 +2,10 @@
 // Schema System
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import type { Result } from './result.js';
-import { Ok, Err, ErrImpl } from './result.js';
-import { type ImmutableRecord, createRecord } from './record.js';
 import { isObjectLike } from './internals.js';
+import { createRecord, type ImmutableRecord } from './record.js';
+import type { Result } from './result.js';
+import { Err, type ErrImpl, Ok } from './result.js';
 
 /**
  * Describes a validation error at a specific path.
@@ -21,8 +21,11 @@ export interface SchemaError {
   readonly received: string;
 }
 
-const schemaErr = (path: readonly string[], expected: string, received: unknown): Result<never, SchemaError> =>
-  Err({ path, expected, received: typeof received });
+const schemaErr = (
+  path: readonly string[],
+  expected: string,
+  received: unknown,
+): Result<never, SchemaError> => Err({ path, expected, received: typeof received });
 
 /**
  * A composable validation schema that parses unknown input into type `T`.
@@ -60,58 +63,73 @@ export interface SchemaType<T> {
 }
 
 const createSchema = <T>(rawParse: (input: unknown) => Result<T, SchemaError>): SchemaType<T> => ({
-  parse: (input) => {
+  parse: input => {
     const r = rawParse(input);
     if (r.isErr) return r as unknown as Result<ImmutableRecord<T>, SchemaError>;
     const val = r.value;
-    if (isObjectLike(val)) return Ok(createRecord(val as object)) as unknown as Result<ImmutableRecord<T>, SchemaError>;
+    if (isObjectLike(val))
+      return Ok(createRecord(val as object)) as unknown as Result<ImmutableRecord<T>, SchemaError>;
     return Ok(val) as unknown as Result<ImmutableRecord<T>, SchemaError>;
   },
   _parseRaw: rawParse,
   is: (input): input is T => rawParse(input).isOk,
-  refine: (predicate, label) => createSchema((input) => {
-    const r = rawParse(input);
-    if (r.isErr) return r;
-    return predicate(r.value) ? r : schemaErr([], label, input);
-  }),
-  transform: <U>(fn: (v: T) => U) => createSchema<U>((input) => {
-    const r = rawParse(input);
-    if (r.isErr) return r as unknown as Result<U, SchemaError>;
-    return Ok(fn(r.value));
-  }),
-  optional: () => createSchema<T | undefined>((input) =>
-    input === undefined ? Ok(undefined) : rawParse(input),
-  ),
-  default: (fallback: T) => createSchema<T>((input) =>
-    input === undefined || input === null ? Ok(fallback) : rawParse(input),
-  ),
+  refine: (predicate, label) =>
+    createSchema(input => {
+      const r = rawParse(input);
+      if (r.isErr) return r;
+      return predicate(r.value) ? r : schemaErr([], label, input);
+    }),
+  transform: <U>(fn: (v: T) => U) =>
+    createSchema<U>(input => {
+      const r = rawParse(input);
+      if (r.isErr) return r as unknown as Result<U, SchemaError>;
+      return Ok(fn(r.value));
+    }),
+  optional: () =>
+    createSchema<T | undefined>(input => (input === undefined ? Ok(undefined) : rawParse(input))),
+  default: (fallback: T) =>
+    createSchema<T>(input =>
+      input === undefined || input === null ? Ok(fallback) : rawParse(input),
+    ),
 });
 
-const stringSchema: SchemaType<string> = createSchema<string>((i) => typeof i === 'string' ? Ok(i) : schemaErr([], 'string', i));
-const numberSchema: SchemaType<number> = createSchema<number>((i) => typeof i === 'number' && !Number.isNaN(i) ? Ok(i) : schemaErr([], 'number', i));
-const booleanSchema: SchemaType<boolean> = createSchema<boolean>((i) => typeof i === 'boolean' ? Ok(i) : schemaErr([], 'boolean', i));
+const stringSchema: SchemaType<string> = createSchema<string>(i =>
+  typeof i === 'string' ? Ok(i) : schemaErr([], 'string', i),
+);
+const numberSchema: SchemaType<number> = createSchema<number>(i =>
+  typeof i === 'number' && !Number.isNaN(i) ? Ok(i) : schemaErr([], 'number', i),
+);
+const booleanSchema: SchemaType<boolean> = createSchema<boolean>(i =>
+  typeof i === 'boolean' ? Ok(i) : schemaErr([], 'boolean', i),
+);
 
-const prependPath = (e: SchemaError, key: string): SchemaError => ({ ...e, path: [key, ...e.path] });
+const prependPath = (e: SchemaError, key: string): SchemaError => ({
+  ...e,
+  path: [key, ...e.path],
+});
 
 const objectSchema = <T extends Record<string, SchemaType<any>>>(
   shape: T,
 ): SchemaType<{ [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never }> =>
-  createSchema((input) => {
-    if (input === null || typeof input !== 'object' || Array.isArray(input)) return schemaErr([], 'object', input);
+  createSchema(input => {
+    if (input === null || typeof input !== 'object' || Array.isArray(input))
+      return schemaErr([], 'object', input);
     const result: Record<string, unknown> = {};
     const keys = Object.keys(shape);
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i]!;
+    for (const key of keys) {
       const fieldSchema = (shape as Record<string, SchemaType<any>>)[key]!;
       const r = fieldSchema._parseRaw((input as Record<string, unknown>)[key]);
       if (r.isErr) return Err(prependPath((r as ErrImpl<unknown, SchemaError>).error, key));
       result[key] = r.value;
     }
-    return Ok(result) as unknown as Result<{ [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never }, SchemaError>;
+    return Ok(result) as unknown as Result<
+      { [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never },
+      SchemaError
+    >;
   });
 
 const arraySchema = <T>(element: SchemaType<T>): SchemaType<readonly T[]> =>
-  createSchema((input) => {
+  createSchema(input => {
     if (!Array.isArray(input)) return schemaErr([], 'array', input);
     const results: T[] = [];
     for (let i = 0; i < input.length; i++) {
@@ -125,25 +143,29 @@ const arraySchema = <T>(element: SchemaType<T>): SchemaType<readonly T[]> =>
 const tupleSchema = <T extends readonly SchemaType<any>[]>(
   ...schemas: T
 ): SchemaType<{ readonly [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never }> =>
-  createSchema((input) => {
+  createSchema(input => {
     if (!Array.isArray(input)) return schemaErr([], 'tuple', input);
-    if (input.length !== schemas.length) return schemaErr([], `tuple(${schemas.length})`, `array(${input.length})`);
+    if (input.length !== schemas.length)
+      return schemaErr([], `tuple(${schemas.length})`, `array(${input.length})`);
     const results: unknown[] = [];
     for (let i = 0; i < schemas.length; i++) {
       const r = schemas[i]!._parseRaw(input[i]);
       if (r.isErr) return Err(prependPath((r as ErrImpl<unknown, SchemaError>).error, String(i)));
       results.push(r.value);
     }
-    return Ok(results) as unknown as Result<{ readonly [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never }, SchemaError>;
+    return Ok(results) as unknown as Result<
+      { readonly [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never },
+      SchemaError
+    >;
   });
 
 const recordValuesSchema = <V>(value: SchemaType<V>): SchemaType<Readonly<Record<string, V>>> =>
-  createSchema((input) => {
-    if (input === null || typeof input !== 'object' || Array.isArray(input)) return schemaErr([], 'record', input);
+  createSchema(input => {
+    if (input === null || typeof input !== 'object' || Array.isArray(input))
+      return schemaErr([], 'record', input);
     const result: Record<string, unknown> = {};
     const keys = Object.keys(input);
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i]!;
+    for (const key of keys) {
       const r = value._parseRaw((input as Record<string, unknown>)[key]);
       if (r.isErr) return Err(prependPath((r as ErrImpl<unknown, SchemaError>).error, key));
       result[key] = r.value;
@@ -152,13 +174,20 @@ const recordValuesSchema = <V>(value: SchemaType<V>): SchemaType<Readonly<Record
   });
 
 const literalSchema = <const T extends string | number | boolean>(value: T): SchemaType<T> =>
-  createSchema((i) => i === value ? Ok(value) : schemaErr([], `literal(${String(value)})`, i));
+  createSchema(i => (i === value ? Ok(value) : schemaErr([], `literal(${String(value)})`, i)));
 
 const unionSchema = <T extends readonly SchemaType<any>[]>(
   ...schemas: T
 ): SchemaType<T[number] extends SchemaType<infer U> ? U : never> =>
-  createSchema((input) => {
-    for (let i = 0; i < schemas.length; i++) { const r = schemas[i]!._parseRaw(input); if (r.isOk) return r as unknown as Result<T[number] extends SchemaType<infer U> ? U : never, SchemaError>; }
+  createSchema(input => {
+    for (const s of schemas) {
+      const r = s._parseRaw(input);
+      if (r.isOk)
+        return r as unknown as Result<
+          T[number] extends SchemaType<infer U> ? U : never,
+          SchemaError
+        >;
+    }
     return schemaErr([], `union(${schemas.length})`, input);
   });
 

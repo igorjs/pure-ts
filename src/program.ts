@@ -12,7 +12,11 @@ const formatError = (error: unknown): string => {
   if (error !== null && typeof error === 'object') {
     const s = String(error);
     if (s !== '[object Object]') return s;
-    try { return JSON.stringify(error); } catch { return s; }
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return s;
+    }
   }
   return String(error);
 };

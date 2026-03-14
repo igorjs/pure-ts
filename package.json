@@ -22,10 +22,13 @@
   },
   "scripts": {
     "check": "tsgo --noEmit",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "format": "biome format --write",
     "build": "rm -rf dist && tsgo",
     "test": "node --test tests/runtime.test.js",
     "test:types": "tsgo -p tsconfig.test.json",
-    "prepublishOnly": "npm run check && npm run build && npm test && npm run test:types"
+    "prepublishOnly": "npm run lint && npm run check && npm run build && npm test && npm run test:types"
   },
   "keywords": [
     "immutable",
@@ -58,6 +61,7 @@
   },
   "homepage": "https://github.com/igorjs/pure-ts#readme",
   "devDependencies": {
+    "@biomejs/biome": "2.4.7",
     "@typescript/native-preview": "latest"
   },
   "peerDependencies": {

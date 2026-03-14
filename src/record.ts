@@ -14,21 +14,21 @@
 //   - Prototype methods are shared (zero per-instance method allocation)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import type { Option } from './option.js';
-import { Some, None } from './option.js';
 import {
-  type DeepReadonly,
-  type Primitive,
-  type Mutation,
-  isObjectLike,
-  deepFreezeRaw,
-  recordPath,
-  getByPath,
-  setByPath,
-  createDraft,
   applyMutations,
+  createDraft,
+  type DeepReadonly,
   deepEqual,
+  deepFreezeRaw,
+  getByPath,
+  isObjectLike,
+  type Mutation,
+  type Primitive,
+  recordPath,
+  setByPath,
 } from './internals.js';
+import type { Option } from './option.js';
+import { None, Some } from './option.js';
 
 /**
  * Methods available on every {@link ImmutableRecord}.
@@ -69,13 +69,17 @@ export interface RecordMethods<T> {
  * This is what makes `user.address` return an ImmutableRecord with
  * .set(), .update(), .produce(), not just a plain readonly object.
  */
-export type _RecordProp<T> =
-  T extends Primitive ? T
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<_RecordProp<U>>
-  : T extends ReadonlyMap<infer K, infer V> ? ReadonlyMap<_RecordProp<K>, _RecordProp<V>>
-  : T extends ReadonlySet<infer U> ? ReadonlySet<_RecordProp<U>>
-  : T extends (...args: any[]) => any ? T
-  : ImmutableRecord<T>;
+export type _RecordProp<T> = T extends Primitive
+  ? T
+  : T extends ReadonlyArray<infer U>
+    ? ReadonlyArray<_RecordProp<U>>
+    : T extends ReadonlyMap<infer K, infer V>
+      ? ReadonlyMap<_RecordProp<K>, _RecordProp<V>>
+      : T extends ReadonlySet<infer U>
+        ? ReadonlySet<_RecordProp<U>>
+        : T extends (...args: any[]) => any
+          ? T
+          : ImmutableRecord<T>;
 
 /**
  * An immutable object with type-safe update methods.
@@ -84,17 +88,22 @@ export type _RecordProp<T> =
  * frozen and accessed via generated getters. Nested objects are lazily
  * wrapped as their own ImmutableRecords.
  */
-export type ImmutableRecord<T> =
-  { readonly [K in keyof T]: _RecordProp<T[K]> } & RecordMethods<T>;
+export type ImmutableRecord<T> = { readonly [K in keyof T]: _RecordProp<T[K]> } & RecordMethods<T>;
 
 // Child proxy cache: parent raw → key → wrapped child
 const CHILD_CACHE = new WeakMap<object, Map<string, object>>();
 
 const getCachedChild = (parentRaw: object, key: string, childRaw: object): ImmutableRecord<any> => {
   let keyMap = CHILD_CACHE.get(parentRaw);
-  if (keyMap === undefined) { keyMap = new Map(); CHILD_CACHE.set(parentRaw, keyMap); }
+  if (keyMap === undefined) {
+    keyMap = new Map();
+    CHILD_CACHE.set(parentRaw, keyMap);
+  }
   let cached = keyMap.get(key);
-  if (cached === undefined) { cached = createRecord(childRaw); keyMap.set(key, cached); }
+  if (cached === undefined) {
+    cached = createRecord(childRaw);
+    keyMap.set(key, cached);
+  }
   return cached as ImmutableRecord<any>;
 };
 
@@ -109,7 +118,7 @@ const getCachedChild = (parentRaw: object, key: string, childRaw: object): Immut
  */
 const SHAPE_CACHE = new Map<string, new (raw: object) => any>();
 
-const buildShapeClass = (keys: readonly string[]): new (raw: object) => any => {
+const buildShapeClass = (keys: readonly string[]): (new (raw: object) => any) => {
   const sorted = keys.slice().sort();
   const shapeKey = sorted.join('\0');
 
@@ -145,15 +154,21 @@ const buildShapeClass = (keys: readonly string[]): new (raw: object) => any => {
   };
 
   proto.equals = function (this: any, other: any): boolean {
-    const otherRaw = (other && typeof other === 'object' && '_raw' in other) ? other._raw : other;
+    const otherRaw = other && typeof other === 'object' && '_raw' in other ? other._raw : other;
     return this._raw === otherRaw || deepEqual(this._raw, otherRaw);
   };
 
-  proto.toMutable = function (this: any) { return structuredClone(this._raw); };
-  proto.toJSON = function (this: any) { return this._raw; };
+  proto.toMutable = function (this: any) {
+    return structuredClone(this._raw);
+  };
+  proto.toJSON = function (this: any) {
+    return this._raw;
+  };
 
   Object.defineProperty(proto, '$raw', {
-    get(this: any) { return this._raw; },
+    get(this: any) {
+      return this._raw;
+    },
     enumerable: false,
   });
 
@@ -166,8 +181,7 @@ const buildShapeClass = (keys: readonly string[]): new (raw: object) => any => {
   // Getters on prototype → V8 creates one hidden class for the shape,
   // all instances share it → monomorphic inline caches after warmup.
 
-  for (let ki = 0; ki < sorted.length; ki++) {
-    const key = sorted[ki]!;
+  for (const key of sorted) {
     Object.defineProperty(proto, key, {
       get(this: { _raw: Record<string, unknown> }) {
         const val = this._raw[key];
@@ -185,7 +199,9 @@ const buildShapeClass = (keys: readonly string[]): new (raw: object) => any => {
   // ── Constructor ──
   const cls = function RecordInstance(this: any, raw: object) {
     this._raw = raw;
-  } as unknown as new (raw: object) => any;
+  } as unknown as new (
+    raw: object,
+  ) => any;
 
   (cls as any).prototype = proto;
 

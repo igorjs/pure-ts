@@ -11,13 +11,17 @@ export type Primitive = string | number | boolean | bigint | symbol | undefined 
  * Handles arrays, Maps, Sets, and plain objects. Functions are left as-is
  * since they are inherently referentially transparent in this context.
  */
-export type DeepReadonly<T> =
-  T extends Primitive ? T
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepReadonly<U>>
-  : T extends ReadonlyMap<infer K, infer V> ? ReadonlyMap<DeepReadonly<K>, DeepReadonly<V>>
-  : T extends ReadonlySet<infer U> ? ReadonlySet<DeepReadonly<U>>
-  : T extends (...args: infer A) => infer R ? (...args: A) => R
-  : { readonly [K in keyof T]: DeepReadonly<T[K]> };
+export type DeepReadonly<T> = T extends Primitive
+  ? T
+  : T extends ReadonlyArray<infer U>
+    ? ReadonlyArray<DeepReadonly<U>>
+    : T extends ReadonlyMap<infer K, infer V>
+      ? ReadonlyMap<DeepReadonly<K>, DeepReadonly<V>>
+      : T extends ReadonlySet<infer U>
+        ? ReadonlySet<DeepReadonly<U>>
+        : T extends (...args: infer A) => infer R
+          ? (...args: A) => R
+          : { readonly [K in keyof T]: DeepReadonly<T[K]> };
 
 /** Check whether `val` is a non-null object (excluding typed arrays). */
 export const isObjectLike = (val: unknown): val is Record<string | symbol, unknown> =>
@@ -33,8 +37,10 @@ export const deepFreezeRaw = (obj: unknown): void => {
   if (!isObjectLike(obj) || Object.isFrozen(obj)) return;
   Object.freeze(obj);
   const keys = Object.keys(obj);
+  // biome-ignore lint/style/useForOf: recursive hot-path during Record creation
   for (let i = 0; i < keys.length; i++) deepFreezeRaw((obj as Record<string, unknown>)[keys[i]!]);
   const syms = Object.getOwnPropertySymbols(obj);
+  // biome-ignore lint/style/useForOf: recursive hot-path during Record creation
   for (let i = 0; i < syms.length; i++) deepFreezeRaw((obj as Record<symbol, unknown>)[syms[i]!]);
 };
 
@@ -43,7 +49,10 @@ let _pathBuf: string[] = [];
 let _pathRecording = false;
 const _pathHandler: ProxyHandler<object> = {
   get(_, prop) {
-    if (typeof prop === 'string') { _pathBuf.push(prop); return _pathSentinel; }
+    if (typeof prop === 'string') {
+      _pathBuf.push(prop);
+      return _pathSentinel;
+    }
     return undefined;
   },
 };
@@ -70,7 +79,10 @@ const recordPathSlow = <T>(accessor: (obj: T) => unknown): string[] => {
   const path: string[] = [];
   const handler: ProxyHandler<object> = {
     get(_, prop) {
-      if (typeof prop === 'string') { path.push(prop); return new Proxy({}, handler); }
+      if (typeof prop === 'string') {
+        path.push(prop);
+        return new Proxy({}, handler);
+      }
       return undefined;
     },
   };
@@ -81,6 +93,7 @@ const recordPathSlow = <T>(accessor: (obj: T) => unknown): string[] => {
 /** Traverse `obj` along `path`, returning the leaf value or `undefined`. */
 export const getByPath = (obj: unknown, path: readonly string[]): unknown => {
   let current = obj;
+  // biome-ignore lint/style/useForOf: hot-path for record .at() and .update()
   for (let i = 0; i < path.length; i++) {
     if (current === null || current === undefined) return undefined;
     current = (current as Record<string, unknown>)[path[i]!];
@@ -107,7 +120,43 @@ export const setByPath = <T>(obj: T, path: readonly string[], value: unknown, de
 
 // Draft proxy
 /** A single mutation captured during a `produce()` draft session. */
-export interface Mutation { readonly path: readonly string[]; readonly value: unknown; }
+export interface Mutation {
+  readonly path: readonly string[];
+  readonly value: unknown;
+}
+
+const DRAFT_UNSET: unique symbol = Symbol('unset');
+
+/** Search mutations in reverse for the most recent write to [...currentPath, prop]. */
+const findMutationValue = (
+  mutations: readonly Mutation[],
+  currentPath: readonly string[],
+  prop: string,
+): unknown => {
+  const depth = currentPath.length;
+  for (let i = mutations.length - 1; i >= 0; i--) {
+    const m = mutations[i]!;
+    if (m.path.length !== depth + 1 || m.path[depth] !== prop) continue;
+    let match = true;
+    for (let j = 0; j < depth; j++) {
+      if (m.path[j] !== currentPath[j]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return m.value;
+  }
+  return DRAFT_UNSET;
+};
+
+/** Build a new path array by appending `prop` to `currentPath`. */
+const appendPath = (currentPath: readonly string[], prop: string): string[] => {
+  const depth = currentPath.length;
+  const path = new Array<string>(depth + 1);
+  for (let j = 0; j < depth; j++) path[j] = currentPath[j]!;
+  path[depth] = prop;
+  return path;
+};
 
 /**
  * Create a mutable draft proxy that records mutations as data.
@@ -117,55 +166,30 @@ export interface Mutation { readonly path: readonly string[]; readonly value: un
  * mutation happens to `base`.
  */
 export const createDraft = <T extends object>(
-  base: T, mutations: Mutation[], currentPath: string[] = [],
+  base: T,
+  mutations: Mutation[],
+  currentPath: string[] = [],
 ): T => {
   const target = Object.isFrozen(base) ? { ...base } : base;
   return new Proxy(target as T, {
     get(tgt, prop, receiver) {
       if (typeof prop !== 'string') return Reflect.get(tgt, prop, receiver);
 
-      // Check mutations without allocating a full path array.
-      // Compare inline: path must equal [...currentPath, prop]
-      const depth = currentPath.length;
-      for (let i = mutations.length - 1; i >= 0; i--) {
-        const m = mutations[i]!;
-        if (m.path.length === depth + 1 && m.path[depth] === prop) {
-          let match = true;
-          for (let j = 0; j < depth; j++) {
-            if (m.path[j] !== currentPath[j]) { match = false; break; }
-          }
-          if (match) return m.value;
-        }
-      }
+      const mutated = findMutationValue(mutations, currentPath, prop);
+      if (mutated !== DRAFT_UNSET) return mutated;
 
       const val = Reflect.get(tgt, prop, receiver);
-      // Only allocate the child path array when recursing into a nested object
-      if (isObjectLike(val)) {
-        const childPath = new Array<string>(depth + 1);
-        for (let j = 0; j < depth; j++) childPath[j] = currentPath[j]!;
-        childPath[depth] = prop;
-        return createDraft(val as object, mutations, childPath);
-      }
+      if (isObjectLike(val))
+        return createDraft(val as object, mutations, appendPath(currentPath, prop));
       return val;
     },
     set(_, prop, value) {
-      if (typeof prop === 'string') {
-        const depth = currentPath.length;
-        const path = new Array<string>(depth + 1);
-        for (let j = 0; j < depth; j++) path[j] = currentPath[j]!;
-        path[depth] = prop;
-        mutations.push({ path, value });
-      }
+      if (typeof prop === 'string') mutations.push({ path: appendPath(currentPath, prop), value });
       return true;
     },
     deleteProperty(_, prop) {
-      if (typeof prop === 'string') {
-        const depth = currentPath.length;
-        const path = new Array<string>(depth + 1);
-        for (let j = 0; j < depth; j++) path[j] = currentPath[j]!;
-        path[depth] = prop;
-        mutations.push({ path, value: undefined });
-      }
+      if (typeof prop === 'string')
+        mutations.push({ path: appendPath(currentPath, prop), value: undefined });
       return true;
     },
   }) as T;
@@ -174,11 +198,18 @@ export const createDraft = <T extends object>(
 /** Apply a list of recorded mutations to `base`, producing a new value via structural sharing. */
 export const applyMutations = <T>(base: T, mutations: readonly Mutation[]): T => {
   let result = base;
-  for (let i = 0; i < mutations.length; i++) {
-    const m = mutations[i]!;
+  for (const m of mutations) {
     result = setByPath(result, m.path, m.value);
   }
   return result;
+};
+
+const deepEqualArrays = (a: readonly unknown[], b: readonly unknown[]): boolean => {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (!deepEqual(a[i], b[i])) return false;
+  }
+  return true;
 };
 
 /**
@@ -191,18 +222,13 @@ export const applyMutations = <T>(base: T, mutations: readonly Mutation[]): T =>
 export const deepEqual = (a: unknown, b: unknown): boolean => {
   if (Object.is(a, b)) return true;
   if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
-  if (Array.isArray(a)) {
-    if (!Array.isArray(b) || a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) { if (!deepEqual(a[i], b[i])) return false; }
-    return true;
-  }
+  if (Array.isArray(a)) return Array.isArray(b) && deepEqualArrays(a, b);
   const aObj = a as Record<string, unknown>;
   const bObj = b as Record<string, unknown>;
   const aKeys = Object.keys(aObj);
   if (aKeys.length !== Object.keys(bObj).length) return false;
-  for (let i = 0; i < aKeys.length; i++) {
-    const k = aKeys[i]!;
-    if (!Object.prototype.hasOwnProperty.call(bObj, k) || !deepEqual(aObj[k], bObj[k])) return false;
+  for (const k of aKeys) {
+    if (!Object.hasOwn(bObj, k) || !deepEqual(aObj[k], bObj[k])) return false;
   }
   return true;
 };

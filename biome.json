@@ -1,0 +1,163 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.7/schema.json",
+  "files": {
+    "includes": ["src/**", "tests/**"]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "trailingCommas": "all",
+      "semicolons": "always",
+      "arrowParentheses": "asNeeded"
+    }
+  },
+  "linter": {
+    "rules": {
+      "recommended": true,
+      "a11y": { "recommended": true },
+      "complexity": {
+        "recommended": true,
+        "useLiteralKeys": "off",
+        "noExcessiveCognitiveComplexity": "error"
+      },
+      "correctness": {
+        "recommended": true,
+        "noUnusedVariables": "off",
+        "noNodejsModules": "off",
+        "noUndeclaredDependencies": "off"
+      },
+      "performance": { "recommended": true },
+      "security": { "recommended": true },
+      "style": {
+        "recommended": true,
+        "noNonNullAssertion": "off",
+        "noParameterAssign": "off",
+        "useNamingConvention": "off",
+        "noDefaultExport": "error",
+        "useFilenamingConvention": "off",
+        "useExplicitLengthCheck": "error",
+        "useForOf": "error",
+        "useFragmentSyntax": "off",
+        "useShorthandAssign": "error",
+        "useConsistentBuiltinInstantiation": "error",
+        "useThrowOnlyError": "error",
+        "useCollapsedElseIf": "error",
+        "noRestrictedTypes": "error"
+      },
+      "suspicious": {
+        "recommended": true,
+        "noAssignInExpressions": "off",
+        "noExplicitAny": "error",
+        "noConsole": "error",
+        "noEmptyBlockStatements": "error",
+        "noMisleadingCharacterClass": "error",
+        "noThenProperty": "error",
+        "useAwait": "off"
+      },
+      "nursery": {
+        "recommended": true,
+        "noShadow": "off",
+        "noTernary": "off",
+        "noContinue": "off",
+        "noIncrementDecrement": "off",
+        "noTopLevelLiterals": "off",
+        "useExplicitType": "off",
+        "noEqualsToNull": "error",
+        "noForIn": "error",
+        "noMultiAssign": "error",
+        "noMultiStr": "error",
+        "noProto": "error",
+        "noReturnAssign": "error",
+        "noUselessReturn": "error",
+        "useArraySome": "error",
+        "useArraySortCompare": "error",
+        "useDestructuring": "off",
+        "useImportsFirst": "error",
+        "useNullishCoalescing": "off",
+        "useSpread": "error",
+        "noExcessiveClassesPerFile": "off",
+        "noExcessiveLinesPerFile": "off",
+        "noScriptUrl": "error",
+        "noFloatingPromises": "error",
+        "noMisusedPromises": "error",
+        "noNestedPromises": "off",
+        "noParametersOnlyUsedInRecursion": "error",
+        "noRootType": "off",
+        "useConsistentMethodSignatures": "off",
+        "useErrorCause": "off",
+        "useExhaustiveSwitchCases": "off",
+        "useFind": "error",
+        "useGlobalThis": "off",
+        "useRegexpExec": "error",
+        "noUndeclaredEnvVars": "off",
+        "noUnnecessaryConditions": "off",
+        "noDuplicatedSpreadProps": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/record.ts", "src/list.ts", "src/internals.ts", "src/schema.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/program.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["tests/runtime.test.js"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off"
+          },
+          "suspicious": {
+            "noExplicitAny": "off",
+            "noConsole": "off"
+          },
+          "complexity": {
+            "useIndexOf": "off"
+          },
+          "nursery": {
+            "noShadow": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["tests/types.test.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off"
+          },
+          "style": {
+            "useConst": "off",
+            "useImportType": "off"
+          },
+          "nursery": {
+            "noShadow": "off"
+          }
+        }
+      }
+    }
+  ]
+}

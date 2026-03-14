@@ -2,9 +2,9 @@
 // ErrType
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import { deepFreezeRaw } from './internals.js';
 import type { Result } from './result.js';
 import { Err } from './result.js';
-import { deepFreezeRaw } from './internals.js';
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -23,7 +23,8 @@ const captureStack = (): string | undefined => {
 
 /** Convert PascalCase to SCREAMING_SNAKE_CASE at runtime. */
 const pascalToScreamingSnake = (s: string): string =>
-  s.replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+  s
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
     .toUpperCase();
 
@@ -35,7 +36,8 @@ const isErrType = (value: unknown): value is ErrType<string, string> => {
     typeof v['tag'] === 'string' &&
     typeof v['code'] === 'string' &&
     typeof v['message'] === 'string' &&
-    typeof v['metadata'] === 'object' && v['metadata'] !== null &&
+    typeof v['metadata'] === 'object' &&
+    v['metadata'] !== null &&
     typeof v['timestamp'] === 'number'
   );
 };
@@ -71,7 +73,14 @@ interface ErrTypeInstance<Tag extends string, Code extends string> {
   toResult<T>(): Result<T, ErrType<Tag, Code>>;
 
   /** Serialise all fields except `stack`. */
-  toJSON(): { readonly tag: Tag; readonly name: Tag; readonly code: Code; readonly message: string; readonly metadata: Readonly<Record<string, unknown>>; readonly timestamp: number };
+  toJSON(): {
+    readonly tag: Tag;
+    readonly name: Tag;
+    readonly code: Code;
+    readonly message: string;
+    readonly metadata: Readonly<Record<string, unknown>>;
+    readonly timestamp: number;
+  };
 
   /** Format as `'Tag(CODE): message'`. */
   toString(): string;
@@ -89,7 +98,13 @@ class ErrTypeImpl<Tag extends string, Code extends string> implements ErrTypeIns
   readonly timestamp: number;
   readonly stack: string | undefined;
 
-  constructor(tag: Tag, code: Code, message: string, metadata: Record<string, unknown>, stack: string | undefined) {
+  constructor(
+    tag: Tag,
+    code: Code,
+    message: string,
+    metadata: Record<string, unknown>,
+    stack: string | undefined,
+  ) {
     this[ERR_TYPE_BRAND] = true;
     this.tag = tag;
     this.name = tag;
@@ -102,13 +117,31 @@ class ErrTypeImpl<Tag extends string, Code extends string> implements ErrTypeIns
     Object.freeze(this);
   }
 
-  toResult<T>(): Result<T, ErrType<Tag, Code>> { return Err(this); }
-
-  toJSON(): { readonly tag: Tag; readonly name: Tag; readonly code: Code; readonly message: string; readonly metadata: Readonly<Record<string, unknown>>; readonly timestamp: number } {
-    return { tag: this.tag, name: this.name, code: this.code, message: this.message, metadata: this.metadata, timestamp: this.timestamp };
+  toResult<T>(): Result<T, ErrType<Tag, Code>> {
+    return Err(this);
   }
 
-  toString(): string { return `${this.tag}(${this.code}): ${this.message}`; }
+  toJSON(): {
+    readonly tag: Tag;
+    readonly name: Tag;
+    readonly code: Code;
+    readonly message: string;
+    readonly metadata: Readonly<Record<string, unknown>>;
+    readonly timestamp: number;
+  } {
+    return {
+      tag: this.tag,
+      name: this.name,
+      code: this.code,
+      message: this.message,
+      metadata: this.metadata,
+      timestamp: this.timestamp,
+    };
+  }
+
+  toString(): string {
+    return `${this.tag}(${this.code}): ${this.message}`;
+  }
 }
 
 // ── Constructor type ─────────────────────────────────────────────────────────
@@ -190,13 +223,16 @@ export const ErrType: {
   /** Type guard: check whether `value` is any {@link ErrType} instance. */
   is(value: unknown): value is ErrType<string, string>;
 } = Object.assign(
-  <Tag extends string, Code extends string>(tag: Tag, code?: Code): ErrTypeConstructor<Tag, Code> => {
+  <Tag extends string, Code extends string>(
+    tag: Tag,
+    code?: Code,
+  ): ErrTypeConstructor<Tag, Code> => {
     const resolvedCode = (code ?? pascalToScreamingSnake(tag)) as Code;
 
-    const constructor = (message: string, metadata?: Record<string, unknown>): ErrType<Tag, Code> =>
+    const ctor = (message: string, metadata?: Record<string, unknown>): ErrType<Tag, Code> =>
       new ErrTypeImpl(tag, resolvedCode, message, metadata ?? {}, captureStack());
 
-    return Object.assign(constructor, {
+    return Object.assign(ctor, {
       tag,
       code: resolvedCode,
       is(value: unknown): value is ErrType<Tag, Code> {

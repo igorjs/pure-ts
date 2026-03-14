@@ -10,16 +10,29 @@
  */
 
 import {
-  Record, List, Schema,
-  Ok, Err, Some, None, Result, Option,
-  match, tryCatch,
-  pipe, flow, Lazy, Task,
+  Err,
   ErrType,
-  Program,
-  type Type,
-  type ImmutableRecord, type ImmutableList, type SchemaType,
   type ErrTypeConstructor,
+  flow,
+  type ImmutableList,
+  type ImmutableRecord,
+  Lazy,
+  List,
+  match,
+  None,
+  Ok,
+  Option,
+  Program,
   type Program as ProgramType,
+  pipe,
+  Record,
+  Result,
+  Schema,
+  type SchemaType,
+  Some,
+  Task,
+  type Type,
+  tryCatch,
 } from '../src/index.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -75,11 +88,20 @@ user.set(u => u.age, 'old');
 // Record.update - fn signature
 // ═══════════════════════════════════════════════════════════════════════════════
 
-user.update(u => u.name, n => n.toUpperCase());
-user.update(u => u.age, a => a + 1);
+user.update(
+  u => u.name,
+  n => n.toUpperCase(),
+);
+user.update(
+  u => u.age,
+  a => a + 1,
+);
 
 // @ts-expect-error - fn returns wrong type
-user.update(u => u.name, _n => 42);
+user.update(
+  u => u.name,
+  _n => 42,
+);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Record.produce
@@ -113,7 +135,9 @@ const _optAge: Option<number> = user.at(u => u.age);
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const other = Record({
-  name: 'Bob', age: 25, active: false,
+  name: 'Bob',
+  age: 25,
+  active: false,
   address: { city: 'Melbourne', geo: { lat: -37.81, lng: 144.96 } },
   tags: ['x'],
 });
@@ -144,7 +168,7 @@ nums.setAt(0, 'x');
 
 const res: Result<number, string> = Ok(42);
 const _mapped: Result<string, string> = res.map(String);
-const _chained: Result<boolean, string> = res.flatMap(n => n > 0 ? Ok(true) : Err('neg'));
+const _chained: Result<boolean, string> = res.flatMap(n => (n > 0 ? Ok(true) : Err('neg')));
 const _unwrapped: number = res.unwrapOr(0);
 
 // @ts-expect-error - wrong fallback type
@@ -182,8 +206,10 @@ const UserSchema = Schema.object({
 });
 
 type User = Schema.Infer<typeof UserSchema>;
-type _T1 = User['name'] extends string ? true : false; const _t1: _T1 = true;
-type _T2 = User['address']['geo']['lat'] extends number ? true : false; const _t2: _T2 = true;
+type _T1 = User['name'] extends string ? true : false;
+const _t1: _T1 = true;
+type _T2 = User['address']['geo']['lat'] extends number ? true : false;
+const _t2: _T2 = true;
 
 const parsed = UserSchema.parse({});
 if (parsed.isOk) {
@@ -216,7 +242,10 @@ getUser('u_001');
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const _piped: string = pipe(42, (n: number) => n + 1, String);
-const _fn = flow((s: string) => s.length, (n: number) => n > 5);
+const _fn = flow(
+  (s: string) => s.length,
+  (n: number) => n > 5,
+);
 const _fr: boolean = _fn('hello');
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -283,9 +312,7 @@ const _wrongCode: 'FORBIDDEN' = nfErr.code;
 const _nfResult: Result<string, ErrType<'NotFound', 'NOT_FOUND'>> = nfErr.toResult<string>();
 
 // Discriminated union narrowing via switch on tag
-type AppError =
-  | ErrType<'NotFound', 'NOT_FOUND'>
-  | ErrType<'Forbidden', 'FORBIDDEN'>;
+type AppError = ErrType<'NotFound', 'NOT_FOUND'> | ErrType<'Forbidden', 'FORBIDDEN'>;
 
 const appErr: AppError = nfErr;
 switch (appErr.tag) {
@@ -406,11 +433,13 @@ const _progTask: ProgramType<number, never> = Program('test', Task.of(42));
 // Program from effect function preserves types
 const _progFn: ProgramType<string, string> = Program(
   'test',
-  (_signal: AbortSignal) => new Task<string, string>(async () => Ok('done'))
+  (_signal: AbortSignal) => new Task<string, string>(async () => Ok('done')),
 );
 
 // execute() returns Promise<Result<T, E>>
 const _execResult: Promise<Result<number, never>> = _progTask.execute();
 
 // execute() accepts optional AbortSignal
-const _execWithSignal: Promise<Result<number, never>> = _progTask.execute(new AbortController().signal);
+const _execWithSignal: Promise<Result<number, never>> = _progTask.execute(
+  new AbortController().signal,
+);

@@ -3,9 +3,9 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import type { Option } from './option.js';
-import { Some, None } from './option.js';
+import { None, Some } from './option.js';
 import type { Result } from './result.js';
-import { Ok, Err } from './result.js';
+import { Err, Ok } from './result.js';
 
 /**
  * Deferred and cached computation. Evaluates the thunk at most once on first access.
@@ -59,20 +59,29 @@ export class Lazy<T> {
 
   /** Get the value, or a fallback if the thunk throws. */
   unwrapOr(fallback: T): T {
-    try { return this.value; }
-    catch { return fallback; }
+    try {
+      return this.value;
+    } catch {
+      return fallback;
+    }
   }
 
   /** Convert to Option: `Some` if evaluates successfully, `None` if the thunk throws. */
   toOption(): Option<T> {
-    try { return Some(this.value); }
-    catch { return None; }
+    try {
+      return Some(this.value);
+    } catch {
+      return None;
+    }
   }
 
   /** Convert to Result: `Ok` if evaluates successfully, `Err` if the thunk throws. */
   toResult<E>(onError: (e: unknown) => E): Result<T, E> {
-    try { return Ok(this.value); }
-    catch (e) { return Err(onError(e)); }
+    try {
+      return Ok(this.value);
+    } catch (e) {
+      return Err(onError(e));
+    }
   }
 
   /** String representation showing evaluation state. */

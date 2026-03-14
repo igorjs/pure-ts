@@ -7,14 +7,25 @@
  * Tests the compiled dist/ output, not the source.
  */
 
-import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
 
 const {
-  Record, List, Schema,
-  Ok, Err, Some, None, Result, Option,
-  match, tryCatch,
-  pipe, flow, Lazy, Task,
+  Record,
+  List,
+  Schema,
+  Ok,
+  Err,
+  Some,
+  None,
+  Result,
+  Option,
+  match,
+  tryCatch,
+  pipe,
+  flow,
+  Lazy,
+  Task,
   isImmutable,
   ErrType,
   Program,
@@ -26,7 +37,8 @@ const {
 
 describe('Record', () => {
   const user = Record({
-    name: 'John Doe', age: 21,
+    name: 'John Doe',
+    age: 21,
     address: { city: 'New York', geo: { lat: -33.87 } },
     tags: ['fp', 'ts'],
   });
@@ -49,8 +61,12 @@ describe('Record', () => {
   });
 
   it('blocks mutation at runtime', () => {
-    assert.throws(() => { user.name = 'X'; }, TypeError);
-    assert.throws(() => { user.address.city = 'X'; }, TypeError);
+    assert.throws(() => {
+      user.name = 'X';
+    }, TypeError);
+    assert.throws(() => {
+      user.address.city = 'X';
+    }, TypeError);
   });
 
   it('set() returns new Record', () => {
@@ -60,7 +76,10 @@ describe('Record', () => {
   });
 
   it('update() transforms value', () => {
-    const upper = user.update(u => u.name, n => n.toUpperCase());
+    const upper = user.update(
+      u => u.name,
+      n => n.toUpperCase(),
+    );
     assert.equal(upper.name, 'JOHN DOE');
     assert.equal(user.name, 'John Doe');
   });
@@ -160,7 +179,9 @@ describe('List', () => {
   });
 
   it('blocks mutation', () => {
-    assert.throws(() => { nums[0] = 99; }, TypeError);
+    assert.throws(() => {
+      nums[0] = 99;
+    }, TypeError);
   });
 
   it('append/prepend', () => {
@@ -178,7 +199,10 @@ describe('List', () => {
   it('map/filter/reduce', () => {
     assert.deepEqual([...nums.map(n => n * 2)], [6, 2, 8, 2, 10]);
     assert.deepEqual([...nums.filter(n => n > 3)], [4, 5]);
-    assert.equal(nums.reduce((a, n) => a + n, 0), 14);
+    assert.equal(
+      nums.reduce((a, n) => a + n, 0),
+      14,
+    );
   });
 
   it('find/findIndex return Option', () => {
@@ -214,7 +238,10 @@ describe('List', () => {
   });
 
   it('nested records in lists', () => {
-    const users = List([{ id: 'u1', name: 'John Doe' }, { id: 'u2', name: 'Gislaine' }]);
+    const users = List([
+      { id: 'u1', name: 'John Doe' },
+      { id: 'u2', name: 'Gislaine' },
+    ]);
     assert.equal(users[0].name, 'John Doe');
     assert.equal(users[0].$immutable, true);
   });
@@ -260,32 +287,55 @@ describe('Result', () => {
   });
 
   it('map/mapErr', () => {
-    assert.equal(Ok(2).map(n => n * 3).unwrap(), 6);
+    assert.equal(
+      Ok(2)
+        .map(n => n * 3)
+        .unwrap(),
+      6,
+    );
     assert.equal(Err('x').map(() => 99).isErr, true);
-    assert.equal(Err('x').mapErr(e => e.toUpperCase()).unwrapErr(), 'X');
+    assert.equal(
+      Err('x')
+        .mapErr(e => e.toUpperCase())
+        .unwrapErr(),
+      'X',
+    );
   });
 
   it('flatMap', () => {
-    assert.equal(Ok(2).flatMap(n => Ok(n * 3)).unwrap(), 6);
+    assert.equal(
+      Ok(2)
+        .flatMap(n => Ok(n * 3))
+        .unwrap(),
+      6,
+    );
     assert.equal(Ok(2).flatMap(() => Err('nope')).isErr, true);
     assert.equal(Err('x').flatMap(() => Ok(99)).isErr, true);
   });
 
   it('tap/tapErr', () => {
     let tapped = 0;
-    Ok(42).tap(v => { tapped = v; });
+    Ok(42).tap(v => {
+      tapped = v;
+    });
     assert.equal(tapped, 42);
-    Err('x').tapErr(e => { tapped = e.length; });
+    Err('x').tapErr(e => {
+      tapped = e.length;
+    });
     assert.equal(tapped, 1);
 
     // tap on Err is no-op
     let didTap = false;
-    Err('x').tap(() => { didTap = true; });
+    Err('x').tap(() => {
+      didTap = true;
+    });
     assert.equal(didTap, false);
 
     // tapErr on Ok is no-op
     let didTapErr = false;
-    Ok(42).tapErr(() => { didTapErr = true; });
+    Ok(42).tapErr(() => {
+      didTapErr = true;
+    });
     assert.equal(didTapErr, false);
   });
 
@@ -294,7 +344,10 @@ describe('Result', () => {
     assert.throws(() => Err('x').unwrap(), TypeError);
     assert.equal(Ok(42).unwrapOr(0), 42);
     assert.equal(Err('x').unwrapOr(0), 0);
-    assert.equal(Err('x').unwrapOrElse(e => e.length), 1);
+    assert.equal(
+      Err('x').unwrapOrElse(e => e.length),
+      1,
+    );
   });
 
   it('unwrapErr throws on Ok', () => {
@@ -316,7 +369,7 @@ describe('Result', () => {
   });
 
   it('ap - applicative apply', () => {
-    const double = (n) => n * 2;
+    const double = n => n * 2;
     assert.equal(Ok(21).ap(Ok(double)).unwrap(), 42);
     assert.equal(Ok(21).ap(Err('no fn')).isErr, true);
     assert.equal(Err('no val').ap(Ok(double)).isErr, true);
@@ -341,7 +394,15 @@ describe('Result', () => {
 
   it('Result.tryCatch', () => {
     assert.equal(Result.tryCatch(() => 42).unwrap(), 42);
-    assert.equal(Result.tryCatch(() => { throw new Error('boom'); }, e => e.message).unwrapErr(), 'boom');
+    assert.equal(
+      Result.tryCatch(
+        () => {
+          throw new Error('boom');
+        },
+        e => e.message,
+      ).unwrapErr(),
+      'boom',
+    );
   });
 
   it('Result.Ok / Result.Err aliases', () => {
@@ -384,21 +445,40 @@ describe('Option', () => {
   });
 
   it('map/flatMap/filter', () => {
-    assert.equal(Some(2).map(n => n * 3).unwrap(), 6);
+    assert.equal(
+      Some(2)
+        .map(n => n * 3)
+        .unwrap(),
+      6,
+    );
     assert.equal(None.map(() => 99).isNone, true);
-    assert.equal(Some(2).flatMap(n => Some(n * 3)).unwrap(), 6);
+    assert.equal(
+      Some(2)
+        .flatMap(n => Some(n * 3))
+        .unwrap(),
+      6,
+    );
     assert.equal(Some(2).filter(n => n > 5).isNone, true);
-    assert.equal(Some(10).filter(n => n > 5).unwrap(), 10);
+    assert.equal(
+      Some(10)
+        .filter(n => n > 5)
+        .unwrap(),
+      10,
+    );
   });
 
   it('tap', () => {
     let tapped = 0;
-    Some(42).tap(v => { tapped = v; });
+    Some(42).tap(v => {
+      tapped = v;
+    });
     assert.equal(tapped, 42);
 
     // tap on None is no-op
     let didTap = false;
-    None.tap(() => { didTap = true; });
+    None.tap(() => {
+      didTap = true;
+    });
     assert.equal(didTap, false);
   });
 
@@ -406,7 +486,10 @@ describe('Option', () => {
     assert.equal(Some(42).unwrap(), 42);
     assert.throws(() => None.unwrap(), TypeError);
     assert.equal(None.unwrapOr(0), 0);
-    assert.equal(None.unwrapOrElse(() => 99), 99);
+    assert.equal(
+      None.unwrapOrElse(() => 99),
+      99,
+    );
   });
 
   it('match', () => {
@@ -424,7 +507,7 @@ describe('Option', () => {
   });
 
   it('ap - applicative apply', () => {
-    const double = (n) => n * 2;
+    const double = n => n * 2;
     assert.equal(Some(21).ap(Some(double)).unwrap(), 42);
     assert.equal(Some(21).ap(None).isNone, true);
     assert.equal(None.ap(Some(double)).isNone, true);
@@ -487,8 +570,18 @@ describe('Option', () => {
 
 describe('pipe', () => {
   it('passes value through stages', () => {
-    assert.equal(pipe(10, n => n + 1, n => n * 2), 22);
-    assert.equal(pipe('hello', s => s.toUpperCase()), 'HELLO');
+    assert.equal(
+      pipe(
+        10,
+        n => n + 1,
+        n => n * 2,
+      ),
+      22,
+    );
+    assert.equal(
+      pipe('hello', s => s.toUpperCase()),
+      'HELLO',
+    );
   });
 
   it('single arg returns value', () => {
@@ -498,14 +591,14 @@ describe('pipe', () => {
   it('9-stage pipeline (max overload)', () => {
     const result = pipe(
       1,
-      n => n + 1,   // 2
-      n => n * 2,   // 4
-      n => n + 1,   // 5
-      n => n * 2,   // 10
-      n => n + 1,   // 11
-      n => n * 2,   // 22
-      n => n + 1,   // 23
-      n => n * 2,   // 46
+      n => n + 1, // 2
+      n => n * 2, // 4
+      n => n + 1, // 5
+      n => n * 2, // 10
+      n => n + 1, // 11
+      n => n * 2, // 22
+      n => n + 1, // 23
+      n => n * 2, // 46
     );
     assert.equal(result, 46);
   });
@@ -513,7 +606,10 @@ describe('pipe', () => {
 
 describe('flow', () => {
   it('composes left-to-right', () => {
-    const fn = flow(n => n + 1, n => n * 2);
+    const fn = flow(
+      n => n + 1,
+      n => n * 2,
+    );
     assert.equal(fn(10), 22);
   });
 
@@ -542,7 +638,10 @@ describe('flow', () => {
 describe('Lazy', () => {
   it('evaluates once on first access', () => {
     let count = 0;
-    const lazy = new Lazy(() => { count++; return 42; });
+    const lazy = new Lazy(() => {
+      count++;
+      return 42;
+    });
     assert.equal(lazy.isEvaluated, false);
     assert.equal(lazy.value, 42);
     assert.equal(lazy.isEvaluated, true);
@@ -566,13 +665,17 @@ describe('Lazy', () => {
     const good = new Lazy(() => 42);
     assert.equal(good.toOption().unwrap(), 42);
 
-    const bad = new Lazy(() => { throw new Error('boom'); });
+    const bad = new Lazy(() => {
+      throw new Error('boom');
+    });
     assert.equal(bad.toOption().isNone, true);
     assert.equal(bad.toResult(e => e.message).unwrapErr(), 'boom');
   });
 
   it('unwrapOr handles exceptions', () => {
-    const bad = new Lazy(() => { throw new Error(); });
+    const bad = new Lazy(() => {
+      throw new Error();
+    });
     assert.equal(bad.unwrapOr(99), 99);
   });
 
@@ -615,7 +718,13 @@ describe('Task', () => {
   it('flatMap short-circuits on error', async () => {
     let ran = false;
     const result = await new Task(async () => Err('stop'))
-      .flatMap(() => new Task(async () => { ran = true; return Ok(99); }))
+      .flatMap(
+        () =>
+          new Task(async () => {
+            ran = true;
+            return Ok(99);
+          }),
+      )
       .run();
     assert.equal(result.isErr, true);
     assert.equal(ran, false);
@@ -623,25 +732,41 @@ describe('Task', () => {
 
   it('tap runs side-effect on success', async () => {
     let tapped = 0;
-    await new Task(async () => Ok(42)).tap(v => { tapped = v; }).run();
+    await new Task(async () => Ok(42))
+      .tap(v => {
+        tapped = v;
+      })
+      .run();
     assert.equal(tapped, 42);
   });
 
   it('tap does not run on error', async () => {
     let didTap = false;
-    await new Task(async () => Err('x')).tap(() => { didTap = true; }).run();
+    await new Task(async () => Err('x'))
+      .tap(() => {
+        didTap = true;
+      })
+      .run();
     assert.equal(didTap, false);
   });
 
   it('tapErr runs side-effect on error', async () => {
     let tapped = '';
-    await new Task(async () => Err('fail')).tapErr(e => { tapped = e; }).run();
+    await new Task(async () => Err('fail'))
+      .tapErr(e => {
+        tapped = e;
+      })
+      .run();
     assert.equal(tapped, 'fail');
   });
 
   it('tapErr does not run on success', async () => {
     let didTap = false;
-    await new Task(async () => Ok(42)).tapErr(() => { didTap = true; }).run();
+    await new Task(async () => Ok(42))
+      .tapErr(() => {
+        didTap = true;
+      })
+      .run();
     assert.equal(didTap, false);
   });
 
@@ -700,7 +825,10 @@ describe('Task', () => {
 
   it('memoize caches result', async () => {
     let count = 0;
-    const task = new Task(async () => { count++; return Ok(42); }).memoize();
+    const task = new Task(async () => {
+      count++;
+      return Ok(42);
+    }).memoize();
     const a = await task.run();
     const b = await task.run();
     assert.equal(a.unwrap(), 42);
@@ -710,7 +838,10 @@ describe('Task', () => {
 
   it('memoize with error', async () => {
     let count = 0;
-    const task = new Task(async () => { count++; return Err('fail'); }).memoize();
+    const task = new Task(async () => {
+      count++;
+      return Err('fail');
+    }).memoize();
     const a = await task.run();
     const b = await task.run();
     assert.equal(a.isErr, true);
@@ -781,11 +912,7 @@ describe('Task', () => {
   });
 
   it('Task.allSettled collects all', async () => {
-    const result = await Task.allSettled([
-      Task.of(1),
-      Task.fromResult(Err('x')),
-      Task.of(3),
-    ]).run();
+    const result = await Task.allSettled([Task.of(1), Task.fromResult(Err('x')), Task.of(3)]).run();
     assert.equal(result.isOk, true);
     const settled = result.unwrap();
     assert.equal(settled.length, 3);
@@ -967,7 +1094,9 @@ describe('ErrType', () => {
 
   it('metadata is deep frozen', () => {
     const err = NotFound('gone', { nested: { value: 1 } });
-    assert.throws(() => { err.metadata.nested.value = 2; }, TypeError);
+    assert.throws(() => {
+      err.metadata.nested.value = 2;
+    }, TypeError);
   });
 
   it('timestamp is a recent epoch ms number', () => {
@@ -1041,8 +1170,12 @@ describe('ErrType', () => {
 
   it('error instance is frozen (property assignment throws)', () => {
     const err = NotFound('gone');
-    assert.throws(() => { err.tag = 'Other'; }, TypeError);
-    assert.throws(() => { err.message = 'changed'; }, TypeError);
+    assert.throws(() => {
+      err.tag = 'Other';
+    }, TypeError);
+    assert.throws(() => {
+      err.message = 'changed';
+    }, TypeError);
   });
 
   it('composes with Result.match()', () => {
@@ -1075,7 +1208,15 @@ describe('match (standalone)', () => {
 describe('tryCatch (standalone)', () => {
   it('catches and wraps', () => {
     assert.equal(tryCatch(() => 42).unwrap(), 42);
-    assert.equal(tryCatch(() => { throw new Error('boom'); }, e => e.message).unwrapErr(), 'boom');
+    assert.equal(
+      tryCatch(
+        () => {
+          throw new Error('boom');
+        },
+        e => e.message,
+      ).unwrapErr(),
+      'boom',
+    );
   });
 });
 
@@ -1106,9 +1247,7 @@ describe('Program', () => {
 
   it('execute() passes AbortSignal to effect', async () => {
     const ac = new AbortController();
-    const prog = Program('test-signal', (signal) =>
-      new Task(async () => Ok(signal.aborted))
-    );
+    const prog = Program('test-signal', signal => new Task(async () => Ok(signal.aborted)));
 
     const before = await prog.execute(ac.signal);
     assert.equal(before.unwrap(), false);
@@ -1119,8 +1258,9 @@ describe('Program', () => {
   });
 
   it('execute() provides default signal when none given', async () => {
-    const prog = Program('test-default-signal', (signal) =>
-      new Task(async () => Ok(signal instanceof AbortSignal))
+    const prog = Program(
+      'test-default-signal',
+      signal => new Task(async () => Ok(signal instanceof AbortSignal)),
     );
     const result = await prog.execute();
     assert.equal(result.unwrap(), true);
@@ -1137,7 +1277,7 @@ describe('Program', () => {
     const prog = Program('test-pipe', () =>
       Task.of(10)
         .map(n => n * 2)
-        .flatMap(n => n > 15 ? Task.of(n) : Task.fromResult(Err('too small')))
+        .flatMap(n => (n > 15 ? Task.of(n) : Task.fromResult(Err('too small')))),
     );
     const result = await prog.execute();
     assert.equal(result.unwrap(), 20);
@@ -1146,7 +1286,7 @@ describe('Program', () => {
   it('execute() works with ErrType errors', async () => {
     const AppError = ErrType('AppError');
     const prog = Program('test-errtype', () =>
-      Task.fromResult(AppError('something broke').toResult())
+      Task.fromResult(AppError('something broke').toResult()),
     );
     const result = await prog.execute();
     assert.equal(result.isErr, true);

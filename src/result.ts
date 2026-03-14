@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import type { Option } from './option.js';
-import { Some, None } from './option.js';
+import { None, Some } from './option.js';
 
 /**
  * A discriminated union representing either success (`Ok<T>`) or failure (`Err<E>`).
@@ -56,37 +56,64 @@ export class OkImpl<T, E> implements ResultMethods<T, E> {
   readonly tag = 'Ok' as const;
   constructor(readonly value: T) {}
 
-  get isOk(): true { return true; }
-  get isErr(): false { return false; }
+  get isOk(): true {
+    return true;
+  }
+  get isErr(): false {
+    return false;
+  }
 
   /** Apply `fn` to the success value, returning a new `Ok`. */
-  map<U>(fn: (value: T) => U): Result<U, E> { return new OkImpl(fn(this.value)); }
+  map<U>(fn: (value: T) => U): Result<U, E> {
+    return new OkImpl(fn(this.value));
+  }
   /** No-op on `Ok`: the error channel is empty. */
-  mapErr<F>(_fn: (error: E) => F): Result<T, F> { return this as unknown as Result<T, F>; }
+  mapErr<F>(_fn: (error: E) => F): Result<T, F> {
+    return this as unknown as Result<T, F>;
+  }
   /** Chain into a dependent computation that may fail. */
-  flatMap<U>(fn: (value: T) => Result<U, E>): Result<U, E> { return fn(this.value); }
+  flatMap<U>(fn: (value: T) => Result<U, E>): Result<U, E> {
+    return fn(this.value);
+  }
   /** Run a side-effect on the success value without altering the Result. */
-  tap(fn: (value: T) => void): Result<T, E> { fn(this.value); return this; }
+  tap(fn: (value: T) => void): Result<T, E> {
+    fn(this.value);
+    return this;
+  }
   /** No-op on `Ok`: no error to tap. */
-  tapErr(_fn: (error: E) => void): Result<T, E> { return this; }
+  tapErr(_fn: (error: E) => void): Result<T, E> {
+    return this;
+  }
   /** Extract the success value. */
-  unwrap(): T { return this.value; }
+  unwrap(): T {
+    return this.value;
+  }
   /** Return the success value, ignoring the fallback. */
-  unwrapOr(_fallback: T): T { return this.value; }
+  unwrapOr(_fallback: T): T {
+    return this.value;
+  }
   /** Return the success value, ignoring the recovery function. */
-  unwrapOrElse(_fn: (error: E) => T): T { return this.value; }
+  unwrapOrElse(_fn: (error: E) => T): T {
+    return this.value;
+  }
   /** Throws: there is no error to extract from `Ok`. */
-  unwrapErr(): never { throw new TypeError(`unwrapErr called on Ok(${String(this.value)})`); }
+  unwrapErr(): never {
+    throw new TypeError(`unwrapErr called on Ok(${String(this.value)})`);
+  }
   /** Exhaustively handle both variants. */
-  match<U>(m: ResultMatcher<T, E, U>): U { return m.Ok(this.value); }
+  match<U>(m: ResultMatcher<T, E, U>): U {
+    return m.Ok(this.value);
+  }
   /** Convert to `Some(value)`. */
-  toOption(): Option<T> { return Some(this.value); }
+  toOption(): Option<T> {
+    return Some(this.value);
+  }
 
   /** Combine two `Ok` values into a tuple, short-circuiting on `Err`. */
   zip<U>(other: Result<U, E>): Result<[T, U], E> {
     return other.isOk
       ? new OkImpl([this.value, (other as OkImpl<U, E>).value])
-      : other as unknown as Result<[T, U], E>;
+      : (other as unknown as Result<[T, U], E>);
   }
 
   /**
@@ -98,12 +125,16 @@ export class OkImpl<T, E> implements ResultMethods<T, E> {
   ap<U>(fnResult: Result<(value: T) => U, E>): Result<U, E> {
     return fnResult.isOk
       ? new OkImpl((fnResult as OkImpl<(value: T) => U, E>).value(this.value))
-      : fnResult as unknown as Result<U, E>;
+      : (fnResult as unknown as Result<U, E>);
   }
 
   /** Serialise as `{ tag: 'Ok', value: T }`. */
-  toJSON(): { tag: 'Ok'; value: T } { return { tag: 'Ok', value: this.value }; }
-  toString(): string { return `Ok(${String(this.value)})`; }
+  toJSON(): { tag: 'Ok'; value: T } {
+    return { tag: 'Ok', value: this.value };
+  }
+  toString(): string {
+    return `Ok(${String(this.value)})`;
+  }
 }
 
 /**
@@ -118,38 +149,73 @@ export class ErrImpl<T, E> implements ResultMethods<T, E> {
   readonly tag = 'Err' as const;
   constructor(readonly error: E) {}
 
-  get isOk(): false { return false; }
-  get isErr(): true { return true; }
+  get isOk(): false {
+    return false;
+  }
+  get isErr(): true {
+    return true;
+  }
 
   /** No-op on `Err`: the value channel is empty. */
-  map<U>(_fn: (value: T) => U): Result<U, E> { return this as unknown as Result<U, E>; }
+  map<U>(_fn: (value: T) => U): Result<U, E> {
+    return this as unknown as Result<U, E>;
+  }
   /** Apply `fn` to the error, returning a new `Err`. */
-  mapErr<F>(fn: (error: E) => F): Result<T, F> { return new ErrImpl(fn(this.error)); }
+  mapErr<F>(fn: (error: E) => F): Result<T, F> {
+    return new ErrImpl(fn(this.error));
+  }
   /** Short-circuit: propagate this `Err` without calling `fn`. */
-  flatMap<U>(_fn: (value: T) => Result<U, E>): Result<U, E> { return this as unknown as Result<U, E>; }
+  flatMap<U>(_fn: (value: T) => Result<U, E>): Result<U, E> {
+    return this as unknown as Result<U, E>;
+  }
   /** No-op on `Err`: no value to tap. */
-  tap(_fn: (value: T) => void): Result<T, E> { return this; }
+  tap(_fn: (value: T) => void): Result<T, E> {
+    return this;
+  }
   /** Run a side-effect on the error without altering the Result. */
-  tapErr(fn: (error: E) => void): Result<T, E> { fn(this.error); return this; }
+  tapErr(fn: (error: E) => void): Result<T, E> {
+    fn(this.error);
+    return this;
+  }
   /** Throws: there is no success value to extract from `Err`. */
-  unwrap(): never { throw new TypeError(`unwrap called on Err(${String(this.error)})`); }
+  unwrap(): never {
+    throw new TypeError(`unwrap called on Err(${String(this.error)})`);
+  }
   /** Return the fallback since this is an `Err`. */
-  unwrapOr(fallback: T): T { return fallback; }
+  unwrapOr(fallback: T): T {
+    return fallback;
+  }
   /** Recover from the error by calling `fn`. */
-  unwrapOrElse(fn: (error: E) => T): T { return fn(this.error); }
+  unwrapOrElse(fn: (error: E) => T): T {
+    return fn(this.error);
+  }
   /** Extract the error value. */
-  unwrapErr(): E { return this.error; }
+  unwrapErr(): E {
+    return this.error;
+  }
   /** Exhaustively handle both variants. */
-  match<U>(m: ResultMatcher<T, E, U>): U { return m.Err(this.error); }
+  match<U>(m: ResultMatcher<T, E, U>): U {
+    return m.Err(this.error);
+  }
   /** Convert to `None` (the success value is absent). */
-  toOption(): Option<T> { return None; }
+  toOption(): Option<T> {
+    return None;
+  }
   /** Short-circuit: propagate this `Err`. */
-  zip<U>(_other: Result<U, E>): Result<[T, U], E> { return this as unknown as Result<[T, U], E>; }
+  zip<U>(_other: Result<U, E>): Result<[T, U], E> {
+    return this as unknown as Result<[T, U], E>;
+  }
   /** Short-circuit: propagate this `Err`. */
-  ap<U>(_fnResult: Result<(value: T) => U, E>): Result<U, E> { return this as unknown as Result<U, E>; }
+  ap<U>(_fnResult: Result<(value: T) => U, E>): Result<U, E> {
+    return this as unknown as Result<U, E>;
+  }
   /** Serialise as `{ tag: 'Err', error: E }`. */
-  toJSON(): { tag: 'Err'; error: E } { return { tag: 'Err', error: this.error }; }
-  toString(): string { return `Err(${String(this.error)})`; }
+  toJSON(): { tag: 'Err'; error: E } {
+    return { tag: 'Err', error: this.error };
+  }
+  toString(): string {
+    return `Err(${String(this.error)})`;
+  }
 }
 
 /**
@@ -188,8 +254,7 @@ export const Err = <E>(error: E): Result<never, E> => new ErrImpl(error);
  */
 export const collectResults = <T, E>(results: readonly Result<T, E>[]): Result<readonly T[], E> => {
   const values: T[] = [];
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i]!;
+  for (const r of results) {
     if (r.isErr) return r as unknown as Result<readonly T[], E>;
     values.push((r as OkImpl<T, E>).value);
   }
@@ -207,9 +272,15 @@ export const collectResults = <T, E>(results: readonly Result<T, E>[]): Result<r
  * tryCatch(() => JSON.parse(raw), e => String(e));
  * ```
  */
-export const tryCatch = <T, E = unknown>(fn: () => T, onError?: (e: unknown) => E): Result<T, E> => {
-  try { return Ok(fn()); }
-  catch (e) { return Err(onError ? onError(e) : e as E); }
+export const tryCatch = <T, E = unknown>(
+  fn: () => T,
+  onError?: (e: unknown) => E,
+): Result<T, E> => {
+  try {
+    return Ok(fn());
+  } catch (e) {
+    return Err(onError ? onError(e) : (e as E));
+  }
 };
 
 /**
@@ -238,7 +309,8 @@ export const Result: {
   Err,
   tryCatch,
   collect: collectResults,
-  match: <T, E, U>(result: Result<T, E>, matcher: ResultMatcher<T, E, U>): U => result.match(matcher),
+  match: <T, E, U>(result: Result<T, E>, matcher: ResultMatcher<T, E, U>): U =>
+    result.match(matcher),
   is: (value): value is Result<unknown, unknown> =>
     value instanceof OkImpl || value instanceof ErrImpl,
 };
