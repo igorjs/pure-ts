@@ -17,6 +17,7 @@
     "README.md"
   ],
   "sideEffects": false,
+  "packageManager": "pnpm@10.32.1",
   "engines": {
     "node": ">=22"
   },
@@ -29,7 +30,7 @@
     "test": "node --test tests/runtime.test.js tests/integration.test.js",
     "test:types": "tsgo -p tsconfig.test.json",
     "version": "node -e \"const fs=require('fs');const j=JSON.parse(fs.readFileSync('jsr.json','utf8'));j.version=JSON.parse(fs.readFileSync('package.json','utf8')).version;fs.writeFileSync('jsr.json',JSON.stringify(j,null,2)+'\\n')\" && git add jsr.json",
-    "prepublishOnly": "npm run lint && npm run check && npm run build && npm test && npm run test:types"
+    "prepublishOnly": "pnpm run lint && pnpm run check && pnpm run build && pnpm test && pnpm run test:types"
   },
   "keywords": [
     "immutable",

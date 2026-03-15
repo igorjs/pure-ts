@@ -15,9 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: pnpm
 
       - name: Validate tag format
         run: |
@@ -30,22 +33,22 @@ jobs:
       - name: Set version from tag
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Lint & format
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Type-check
-        run: npm run check
+        run: pnpm run check
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Runtime tests
-        run: npm test
+        run: pnpm test
 
       - name: Type tests
-        run: npm run test:types
+        run: pnpm run test:types
 
   publish-npm:
     needs: verify
@@ -53,6 +56,8 @@ jobs:
     environment: npm
     steps:
       - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v6
         with:
@@ -62,15 +67,17 @@ jobs:
       - name: Set version from tag
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version
 
-      - run: npm ci
-      - run: npm run build
-      - run: npm publish --provenance --access public
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm publish --provenance --access public --no-git-checks
 
   publish-gpr:
     needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v6
         with:
@@ -81,9 +88,9 @@ jobs:
       - name: Set version from tag
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version
 
-      - run: npm ci
-      - run: npm run build
-      - run: npm publish
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -116,7 +123,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json jsr.json
+          git add package.json jsr.json
           git diff --staged --quiet && echo "Already at v${VERSION}" && exit 0
           git commit -m "chore: bump version to ${VERSION} [skip ci]"
           git push origin main
