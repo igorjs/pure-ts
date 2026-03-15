@@ -1,10 +1,10 @@
 /**
- * program-run.test.js - Black-box tests for Program.run() process lifecycle.
+ * program.test.js - Black-box tests for Program.run() process lifecycle.
  *
  * Spawns fixture scripts as child processes and verifies exit codes,
  * stdout, and stderr. No mocking, no stubbing - tests real process behaviour.
  *
- * Run: node --test tests/program-run.test.js
+ * Run: node --test tests/program.test.js
  */
 
 import assert from 'node:assert/strict';

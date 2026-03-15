@@ -27,7 +27,7 @@
     "lint:fix": "biome check --write",
     "format": "biome format --write",
     "build": "rm -rf dist && tsgo",
-    "test": "node --test tests/runtime.test.js tests/integration.test.js tests/program-run.test.js",
+    "test": "node --test tests/runtime.test.js tests/integration.test.js tests/program.test.js",
     "test:types": "tsgo -p tsconfig.test.json",
     "version": "node -e \"const fs=require('fs');const j=JSON.parse(fs.readFileSync('jsr.json','utf8'));j.version=JSON.parse(fs.readFileSync('package.json','utf8')).version;fs.writeFileSync('jsr.json',JSON.stringify(j,null,2)+'\\n')\" && git add jsr.json",
     "prepublishOnly": "pnpm run lint && pnpm run check && pnpm run build && pnpm test && pnpm run test:types"
