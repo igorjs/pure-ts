@@ -1,9 +1,23 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// Task<T, E>
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * @module task
+ *
+ * Lazy, composable async computations that always produce `Result<T, E>`.
+ *
+ * **Why Task instead of raw async/await?**
+ * An `async function` executes immediately when called and throws on failure.
+ * `Task` is a *description* of an async operation: it does nothing until
+ * `.run()` is called. This lets you build pipelines (`map`, `flatMap`, `zip`)
+ * that compose before any side effects happen, and guarantees the result is
+ * always a `Result` (never a thrown exception).
+ *
+ * **How memoisation works:**
+ * `.memoize()` captures the first `.run()` Promise. Concurrent callers
+ * share the same in-flight Promise (no duplicate work). After settlement,
+ * the original thunk is released for GC, mirroring `Lazy<T>`.
+ */
 
-import type { Result } from './result.js';
-import { collectResults, Err, type ErrImpl, Ok } from './result.js';
+import type { Result } from "./result.js";
+import { collectResults, Err, type ErrImpl, Ok } from "./result.js";
 
 /**
  * Composable async computation that produces `Result<T, E>`.
@@ -140,7 +154,7 @@ export class Task<T, E> {
       Promise.race([
         this._run(),
         new Promise<Result<T, E>>(resolve => setTimeout(() => resolve(Err(onTimeout())), ms)),
-      ]),
+      ])
     );
   }
 
@@ -157,8 +171,9 @@ export class Task<T, E> {
     return new Task(async () => {
       let last: Result<T, E> = await this._run();
       for (let i = 1; i < attempts && last.isErr; i++) {
-        if (delay !== undefined && delay > 0)
+        if (delay !== undefined && delay > 0) {
           await new Promise<void>(resolve => setTimeout(resolve, delay));
+        }
         last = await this._run();
       }
       return last;

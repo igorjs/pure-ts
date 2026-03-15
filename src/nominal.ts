@@ -1,6 +1,18 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// Nominal Types (Zero Runtime)
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * @module nominal
+ *
+ * Phantom-branded nominal types for compile-time domain safety.
+ *
+ * **Why nominal typing?**
+ * TypeScript uses structural typing: a `string` is a `string` regardless of
+ * what it represents. `UserId` and `PostId` would be interchangeable. Nominal
+ * types brand the base type with a unique phantom property that exists only
+ * in the type system, preventing accidental misuse at zero runtime cost.
+ *
+ * **How to use with Schema:**
+ * Combine `Schema.string.refine(...).transform(s => s as UserId)` to get
+ * validated, runtime-checked nominal values at trust boundaries.
+ */
 
 /**
  * Nominal typing via phantom brand. Zero runtime cost - pure type-level.

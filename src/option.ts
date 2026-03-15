@@ -1,9 +1,19 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// Option<T>
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * @module option
+ *
+ * Explicit optionality: `Option<T>` replaces nullable values (`T | null | undefined`)
+ * with a chainable monad. This forces callers to handle absence rather than
+ * silently propagating `undefined` through pipelines.
+ *
+ * Two concrete classes (`SomeImpl`, `NoneImpl`) implement `OptionMethods`.
+ * `None` is a singleton to avoid unnecessary allocations.
+ *
+ * The `Option` const/type merge provides `Option.fromNullable()` in value
+ * position and `Option<T>` in type position, paralleling `Result`.
+ */
 
-import type { Result } from './result.js';
-import { Err, Ok } from './result.js';
+import type { Result } from "./result.js";
+import { Err, Ok } from "./result.js";
 
 /**
  * A discriminated union representing a value that may or may not exist.
@@ -25,6 +35,13 @@ export interface OptionMatcher<T, U> {
   readonly None: () => U;
 }
 
+/**
+ * Shared contract for both `Some` and `None` variants.
+ *
+ * Ensures both classes expose identical method signatures so callers can
+ * chain operations without narrowing first. `None` methods are no-ops
+ * that propagate absence.
+ */
 interface OptionMethods<T> {
   map<U>(fn: (value: T) => U): Option<U>;
   flatMap<U>(fn: (value: T) => Option<U>): Option<U>;
@@ -38,7 +55,7 @@ interface OptionMethods<T> {
   zip<U>(other: Option<U>): Option<[T, U]>;
   ap<U>(fnOption: Option<(value: T) => U>): Option<U>;
   or(_other: Option<T>): Option<T>;
-  toJSON(): { tag: 'Some'; value: T } | { tag: 'None' };
+  toJSON(): { tag: "Some"; value: T } | { tag: "None" };
   toString(): string;
 }
 
@@ -51,7 +68,7 @@ interface OptionMethods<T> {
  * Construct via the {@link Some} factory rather than `new SomeImpl(...)`.
  */
 export class SomeImpl<T> implements OptionMethods<T> {
-  readonly tag = 'Some' as const;
+  readonly tag = "Some" as const;
   constructor(readonly value: T) {}
 
   get isSome(): true {
@@ -118,8 +135,8 @@ export class SomeImpl<T> implements OptionMethods<T> {
     return this;
   }
   /** Serialise as `{ tag: 'Some', value: T }`. */
-  toJSON(): { tag: 'Some'; value: T } {
-    return { tag: 'Some', value: this.value };
+  toJSON(): { tag: "Some"; value: T } {
+    return { tag: "Some", value: this.value };
   }
   toString(): string {
     return `Some(${String(this.value)})`;
@@ -135,7 +152,7 @@ export class SomeImpl<T> implements OptionMethods<T> {
  * Use the singleton {@link None} constant rather than `new NoneImpl()`.
  */
 export class NoneImpl<T> implements OptionMethods<T> {
-  readonly tag = 'None' as const;
+  readonly tag = "None" as const;
 
   get isSome(): false {
     return false;
@@ -162,7 +179,7 @@ export class NoneImpl<T> implements OptionMethods<T> {
   }
   /** Throws: there is no value to extract from `None`. */
   unwrap(): never {
-    throw new TypeError('unwrap called on None');
+    throw new TypeError("unwrap called on None");
   }
   /** Return the fallback since this is `None`. */
   unwrapOr(fallback: T): T {
@@ -193,11 +210,11 @@ export class NoneImpl<T> implements OptionMethods<T> {
     return other;
   }
   /** Serialise as `{ tag: 'None' }`. */
-  toJSON(): { tag: 'None' } {
-    return { tag: 'None' };
+  toJSON(): { tag: "None" } {
+    return { tag: "None" };
   }
   toString(): string {
-    return 'None';
+    return "None";
   }
 }
 

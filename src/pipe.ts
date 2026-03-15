@@ -1,6 +1,18 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// pipe / flow
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * @module pipe
+ *
+ * Left-to-right function composition utilities.
+ *
+ * **Why both `pipe` and `flow`?**
+ * `pipe` is data-first: you pass a value and a chain of transforms.
+ * `flow` is point-free: you compose functions without mentioning the data.
+ * Both are overloaded (up to 9 stages for pipe, 6 for flow) so TypeScript
+ * infers every intermediate type without annotation.
+ *
+ * **Why indexed for-loops instead of reduce?**
+ * These are hot-path utilities that may run in tight loops. Indexed iteration
+ * avoids iterator object allocation and the overhead of `.reduce()` closures.
+ */
 
 /**
  * Left-to-right data transformation. Data-first.

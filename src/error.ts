@@ -1,19 +1,41 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// ErrType
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * @module error
+ *
+ * Structured, immutable error constructors for domain modelling.
+ *
+ * **Why ErrType instead of plain Error subclasses?**
+ * `Error` subclasses are mutable, lack a machine-readable discriminant, and
+ * encourage `instanceof` checks that break across realms. `ErrType` produces
+ * frozen value objects with a literal `tag` discriminant, making them safe for
+ * `switch`/`match` exhaustiveness checks and serialisation. They compose
+ * naturally with `Result<T, E>` via `.toResult()`.
+ *
+ * **How the factory/type merge works:**
+ * `ErrType` is both a type (`ErrType<'NotFound', 'NOT_FOUND'>` describes an
+ * instance) and a value (`ErrType('NotFound')` returns a callable constructor).
+ * TypeScript's const/type merge makes this seamless. The constructor auto-derives
+ * a SCREAMING_SNAKE code from the PascalCase tag unless overridden.
+ */
 
-import { deepFreezeRaw } from './internals.js';
-import type { Result } from './result.js';
-import { Err } from './result.js';
+import { deepFreezeRaw } from "./internals.js";
+import type { Result } from "./result.js";
+import { Err } from "./result.js";
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
-const ERR_TYPE_BRAND = Symbol.for('pure-ts/ErrType');
+/**
+ * Global symbol brand for ErrType instances.
+ *
+ * Uses `Symbol.for` so the brand is shared across realms (e.g. when the
+ * library is duplicated in node_modules). This makes `.is()` guards reliable
+ * even when multiple copies of pure-ts are loaded.
+ */
+const ERR_TYPE_BRAND = Symbol.for("pure-ts/ErrType");
 
 /** Capture a stack trace, stripping library frames where V8 is available. */
 const captureStack = (): string | undefined => {
   const holder: { stack?: string | undefined } = {};
-  if (typeof Error.captureStackTrace === 'function') {
+  if (typeof Error.captureStackTrace === "function") {
     Error.captureStackTrace(holder, captureStack);
   } else {
     holder.stack = new Error().stack;
@@ -24,21 +46,21 @@ const captureStack = (): string | undefined => {
 /** Convert PascalCase to SCREAMING_SNAKE_CASE at runtime. */
 const pascalToScreamingSnake = (s: string): string =>
   s
-    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
     .toUpperCase();
 
 /** Structural check for any ErrType instance. */
 const isErrType = (value: unknown): value is ErrType<string, string> => {
-  if (value === null || typeof value !== 'object') return false;
+  if (value === null || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   return (
-    typeof v['tag'] === 'string' &&
-    typeof v['code'] === 'string' &&
-    typeof v['message'] === 'string' &&
-    typeof v['metadata'] === 'object' &&
-    v['metadata'] !== null &&
-    typeof v['timestamp'] === 'number'
+    typeof v["tag"] === "string"
+    && typeof v["code"] === "string"
+    && typeof v["message"] === "string"
+    && typeof v["metadata"] === "object"
+    && v["metadata"] !== null
+    && typeof v["timestamp"] === "number"
   );
 };
 
@@ -88,6 +110,13 @@ interface ErrTypeInstance<Tag extends string, Code extends string> {
 
 // ── Implementation class ─────────────────────────────────────────────────────
 
+/**
+ * Internal implementation of ErrType instances.
+ *
+ * Not exported: callers use the `ErrType()` factory which returns
+ * `ErrTypeConstructor`. Instances are frozen in the constructor so
+ * no property can be mutated after creation.
+ */
 class ErrTypeImpl<Tag extends string, Code extends string> implements ErrTypeInstance<Tag, Code> {
   readonly [ERR_TYPE_BRAND]: true;
   readonly tag: Tag;
@@ -232,13 +261,16 @@ export const ErrType: {
     const ctor = (message: string, metadata?: Record<string, unknown>): ErrType<Tag, Code> =>
       new ErrTypeImpl(tag, resolvedCode, message, metadata ?? {}, captureStack());
 
-    return Object.assign(ctor, {
-      tag,
-      code: resolvedCode,
-      is(value: unknown): value is ErrType<Tag, Code> {
-        return isErrType(value) && value.tag === tag && value.code === resolvedCode;
-      },
-    } as const);
+    return Object.assign(
+      ctor,
+      {
+        tag,
+        code: resolvedCode,
+        is(value: unknown): value is ErrType<Tag, Code> {
+          return isErrType(value) && value.tag === tag && value.code === resolvedCode;
+        },
+      } as const,
+    );
   },
   {
     is: isErrType,

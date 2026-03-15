@@ -1,9 +1,20 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// Result<T, E>
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * @module result
+ *
+ * Railway-oriented error handling: every fallible operation returns
+ * `Result<T, E>` instead of throwing. This eliminates invisible control
+ * flow (try/catch) and makes error paths explicit in the type system.
+ *
+ * Two concrete classes (`OkImpl`, `ErrImpl`) share a common interface
+ * (`ResultMethods`). Methods live on prototypes so instances carry only
+ * their payload, keeping GC pressure low.
+ *
+ * The `Result` const/type merge lets callers use `Result.tryCatch()` in
+ * value position and `Result<T, E>` in type position, mirroring Rust.
+ */
 
-import type { Option } from './option.js';
-import { None, Some } from './option.js';
+import type { Option } from "./option.js";
+import { None, Some } from "./option.js";
 
 /**
  * A discriminated union representing either success (`Ok<T>`) or failure (`Err<E>`).
@@ -26,6 +37,13 @@ export interface ResultMatcher<T, E, U> {
   readonly Err: (error: E) => U;
 }
 
+/**
+ * Shared contract for both `Ok` and `Err` variants.
+ *
+ * This interface exists so `OkImpl` and `ErrImpl` are guaranteed to expose
+ * the same set of methods, enabling exhaustive pattern matching and safe
+ * narrowing via `.isOk` / `.isErr` without casting.
+ */
 interface ResultMethods<T, E> {
   map<U>(fn: (value: T) => U): Result<U, E>;
   mapErr<F>(_fn: (error: E) => F): Result<T, F>;
@@ -40,7 +58,7 @@ interface ResultMethods<T, E> {
   toOption(): Option<T>;
   zip<U>(other: Result<U, E>): Result<[T, U], E>;
   ap<U>(fnResult: Result<(value: T) => U, E>): Result<U, E>;
-  toJSON(): { tag: 'Ok'; value: T } | { tag: 'Err'; error: E };
+  toJSON(): { tag: "Ok"; value: T } | { tag: "Err"; error: E };
   toString(): string;
 }
 
@@ -53,7 +71,7 @@ interface ResultMethods<T, E> {
  * Construct via the {@link Ok} factory rather than `new OkImpl(...)`.
  */
 export class OkImpl<T, E> implements ResultMethods<T, E> {
-  readonly tag = 'Ok' as const;
+  readonly tag = "Ok" as const;
   constructor(readonly value: T) {}
 
   get isOk(): true {
@@ -129,8 +147,8 @@ export class OkImpl<T, E> implements ResultMethods<T, E> {
   }
 
   /** Serialise as `{ tag: 'Ok', value: T }`. */
-  toJSON(): { tag: 'Ok'; value: T } {
-    return { tag: 'Ok', value: this.value };
+  toJSON(): { tag: "Ok"; value: T } {
+    return { tag: "Ok", value: this.value };
   }
   toString(): string {
     return `Ok(${String(this.value)})`;
@@ -146,7 +164,7 @@ export class OkImpl<T, E> implements ResultMethods<T, E> {
  * Construct via the {@link Err} factory rather than `new ErrImpl(...)`.
  */
 export class ErrImpl<T, E> implements ResultMethods<T, E> {
-  readonly tag = 'Err' as const;
+  readonly tag = "Err" as const;
   constructor(readonly error: E) {}
 
   get isOk(): false {
@@ -210,8 +228,8 @@ export class ErrImpl<T, E> implements ResultMethods<T, E> {
     return this as unknown as Result<U, E>;
   }
   /** Serialise as `{ tag: 'Err', error: E }`. */
-  toJSON(): { tag: 'Err'; error: E } {
-    return { tag: 'Err', error: this.error };
+  toJSON(): { tag: "Err"; error: E } {
+    return { tag: "Err", error: this.error };
   }
   toString(): string {
     return `Err(${String(this.error)})`;
@@ -309,8 +327,6 @@ export const Result: {
   Err,
   tryCatch,
   collect: collectResults,
-  match: <T, E, U>(result: Result<T, E>, matcher: ResultMatcher<T, E, U>): U =>
-    result.match(matcher),
-  is: (value): value is Result<unknown, unknown> =>
-    value instanceof OkImpl || value instanceof ErrImpl,
+  match: <T, E, U>(result: Result<T, E>, matcher: ResultMatcher<T, E, U>): U => result.match(matcher),
+  is: (value): value is Result<unknown, unknown> => value instanceof OkImpl || value instanceof ErrImpl,
 };

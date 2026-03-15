@@ -1,11 +1,27 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// ImmutableList<T>
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * @module list
+ *
+ * Immutable arrays with functional query and update methods.
+ *
+ * **Why Proxy here but not for Record?**
+ * Arrays need numeric index access (`list[0]`), iteration via `Symbol.iterator`,
+ * `.length`, spread, and destructuring. A Proxy is the only way to intercept
+ * index reads and wrap nested objects as Records while preserving the full
+ * `ReadonlyArray` interface. The read-path cost is acceptable because arrays
+ * are typically iterated, not randomly accessed in hot loops.
+ *
+ * **How it works:**
+ * The raw array is frozen and wrapped in a single Proxy per instance.
+ * `ListMethods` are built once per array and stored in a WeakMap (keyed by
+ * the raw array), so the Proxy handler's `get` trap resolves them by lookup.
+ * Nested objects at numeric indices are lazily wrapped as `ImmutableRecord`
+ * and cached in a separate WeakMap.
+ */
 
-import { type DeepReadonly, deepEqual, isObjectLike } from './internals.js';
-import type { Option } from './option.js';
-import { None, Some } from './option.js';
-import { createRecord } from './record.js';
+import { deepEqual, type DeepReadonly, isObjectLike } from "./internals.js";
+import type { Option } from "./option.js";
+import { None, Some } from "./option.js";
+import { createRecord } from "./record.js";
 
 /**
  * Methods available on every {@link ImmutableList}.
@@ -61,10 +77,17 @@ export interface ListMethods<T> {
   readonly $immutable: true;
 }
 
-// Omit ReadonlyArray methods that ListMethods overrides with different signatures
+/**
+ * Base array type with conflicting methods removed.
+ *
+ * `ReadonlyArray` defines `find`, `map`, `filter`, etc. with signatures that
+ * return raw values. `ListMethods` overrides them to return `Option` or
+ * `ImmutableList`. We `Omit` the originals so the intersection type does not
+ * produce conflicting overloads.
+ */
 export type ListBase<T> = Omit<
   ReadonlyArray<DeepReadonly<T>>,
-  'find' | 'findIndex' | 'map' | 'filter' | 'flatMap' | 'concat' | 'at'
+  "find" | "findIndex" | "map" | "filter" | "flatMap" | "concat" | "at"
 >;
 
 /**
@@ -76,35 +99,51 @@ export type ListBase<T> = Omit<
  */
 export type ImmutableList<T> = ListBase<T> & ListMethods<T>;
 
+/**
+ * Known method names for the Proxy `get` trap.
+ *
+ * When the Proxy intercepts a property access, it checks this set first.
+ * If the prop is a known method, it returns the pre-built method object
+ * from the WeakMap instead of falling through to `Reflect.get`.
+ */
 const LIST_METHOD_KEYS = new Set([
-  'append',
-  'prepend',
-  'setAt',
-  'updateAt',
-  'removeAt',
-  'map',
-  'filter',
-  'reduce',
-  'find',
-  'findIndex',
-  'at',
-  'first',
-  'last',
-  'concat',
-  'slice',
-  'sortBy',
-  'flatMap',
-  'equals',
-  'toMutable',
-  'toJSON',
-  '$raw',
-  '$immutable',
+  "append",
+  "prepend",
+  "setAt",
+  "updateAt",
+  "removeAt",
+  "map",
+  "filter",
+  "reduce",
+  "find",
+  "findIndex",
+  "at",
+  "first",
+  "last",
+  "concat",
+  "slice",
+  "sortBy",
+  "flatMap",
+  "equals",
+  "toMutable",
+  "toJSON",
+  "$raw",
+  "$immutable",
 ]);
 
+/** Pre-built method objects keyed by raw array. One per list instance. */
 const LIST_METHODS = new WeakMap<readonly unknown[], ListMethods<any>>();
+/** Cached Record-wrapped children keyed by raw array and index. */
 const LIST_CHILD_CACHE = new WeakMap<readonly unknown[], Map<number, object>>();
+/** Proxy instances keyed by raw array, preventing double-wrapping. */
 const LIST_PROXY_CACHE = new WeakMap<readonly unknown[], object>();
 
+/**
+ * Build the `ListMethods` object for a given raw array.
+ *
+ * Each method creates a new raw array and wraps it via `createListProxy`,
+ * ensuring every returned list is itself immutable.
+ */
 const buildListMethods = <T>(raw: readonly T[]): ListMethods<T> => ({
   append(value: T) {
     return createListProxy([...raw, value]);
@@ -157,7 +196,7 @@ const buildListMethods = <T>(raw: readonly T[]): ListMethods<T> => ({
     return raw.length > 0 ? Some(raw[raw.length - 1]!) : None;
   },
   concat(other: ImmutableList<T> | readonly T[]) {
-    const o = '$raw' in other ? other.$raw : other;
+    const o = "$raw" in other ? other.$raw : other;
     return createListProxy([...raw, ...o] as T[]);
   },
   slice(start?: number, end?: number) {
@@ -170,7 +209,7 @@ const buildListMethods = <T>(raw: readonly T[]): ListMethods<T> => ({
     return createListProxy(raw.flatMap(fn));
   },
   equals(other: ImmutableList<T>): boolean {
-    const otherRaw = other && typeof other === 'object' && '$raw' in other ? other.$raw : other;
+    const otherRaw = other && typeof other === "object" && "$raw" in other ? other.$raw : other;
     return raw === otherRaw || deepEqual(raw, otherRaw);
   },
   toMutable(): T[] {
@@ -185,16 +224,25 @@ const buildListMethods = <T>(raw: readonly T[]): ListMethods<T> => ({
   $immutable: true as const,
 });
 
+/**
+ * Shared Proxy handler for all ImmutableList instances.
+ *
+ * A single handler object is reused across all lists. The `get` trap
+ * resolves methods from the WeakMap, wraps nested objects at numeric
+ * indices, and delegates everything else to `Reflect.get`. The `set`,
+ * `deleteProperty`, and `defineProperty` traps throw to enforce immutability.
+ */
 const LIST_HANDLER: ProxyHandler<readonly unknown[]> = {
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: hot-path proxy handler, inlined for performance
   get(target, prop, receiver) {
-    if (typeof prop === 'string' && LIST_METHOD_KEYS.has(prop))
+    if (typeof prop === "string" && LIST_METHOD_KEYS.has(prop)) {
       return (LIST_METHODS.get(target) as any)?.[prop];
+    }
     if (
-      typeof prop === 'string' &&
-      prop.length > 0 &&
-      prop.charCodeAt(0) >= 48 &&
-      prop.charCodeAt(0) <= 57
+      typeof prop === "string"
+      && prop.length > 0
+      && prop.charCodeAt(0) >= 48
+      && prop.charCodeAt(0) <= 57
     ) {
       const idx = Number(prop);
       if (Number.isInteger(idx) && idx >= 0 && idx < target.length) {

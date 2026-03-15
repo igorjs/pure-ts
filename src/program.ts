@@ -1,17 +1,31 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// Program
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * @module program
+ *
+ * Process-lifecycle wrapper for Task-based CLI programs.
+ *
+ * **Why Program instead of a bare Task.run()?**
+ * Production CLI tools need signal handling (SIGINT/SIGTERM for graceful
+ * shutdown), structured logging (timestamps + program name), and correct
+ * exit codes. `Program` encapsulates all of this so the effect function
+ * only needs to return a `Task`, not manage process lifecycle.
+ *
+ * **How `.run()` vs `.execute()` differs:**
+ * `.run()` is for production: it registers signal handlers, logs to
+ * stdout/stderr, and calls `process.exit()`. `.execute()` is for testing:
+ * it returns the raw `Result` without any side effects, so tests can
+ * assert on outcomes without spawning child processes.
+ */
 
-import type { Result } from './result.js';
-import type { Task } from './task.js';
+import type { Result } from "./result.js";
+import type { Task } from "./task.js";
 
 // ── Error formatting ────────────────────────────────────────────────────────
 
 /** Format an error value for stderr. Prefers toString() over String(). */
 const formatError = (error: unknown): string => {
-  if (error !== null && typeof error === 'object') {
+  if (error !== null && typeof error === "object") {
     const s = String(error);
-    if (s !== '[object Object]') return s;
+    if (s !== "[object Object]") return s;
     try {
       return JSON.stringify(error);
     } catch {
@@ -89,8 +103,7 @@ export function Program<T, E>(
   effect: Task<T, E> | ((signal: AbortSignal) => Task<T, E>),
   options?: { readonly teardownTimeoutMs?: number },
 ): Program<T, E> {
-  const toTask: (signal: AbortSignal) => Task<T, E> =
-    typeof effect === 'function' ? effect : () => effect;
+  const toTask: (signal: AbortSignal) => Task<T, E> = typeof effect === "function" ? effect : () => effect;
 
   const tag = `[${name}]`;
   const teardownTimeoutMs = options?.teardownTimeoutMs;
@@ -111,8 +124,8 @@ export function Program<T, E>(
         }
       };
 
-      process.on('SIGINT', onSignal);
-      process.on('SIGTERM', onSignal);
+      process.on("SIGINT", onSignal);
+      process.on("SIGTERM", onSignal);
 
       console.log(`${ts()} ${tag} started`);
 
@@ -133,8 +146,8 @@ export function Program<T, E>(
         exitCode = 1;
       } finally {
         if (teardownTimer) clearTimeout(teardownTimer);
-        process.off('SIGINT', onSignal);
-        process.off('SIGTERM', onSignal);
+        process.off("SIGINT", onSignal);
+        process.off("SIGTERM", onSignal);
       }
 
       process.exit(exitCode);

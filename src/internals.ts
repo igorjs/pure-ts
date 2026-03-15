@@ -1,6 +1,18 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// Internal Utilities
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * @module internals
+ *
+ * Shared low-level utilities used by Record, List, and Schema.
+ *
+ * This module is internal: nothing here is re-exported from the public API.
+ * It contains:
+ *   - **Type utilities** (`DeepReadonly`, `Draft`, `Primitive`) used across modules
+ *   - **Deep freeze** (`deepFreezeRaw`) for in-place `Object.freeze` recursion
+ *   - **Path recording** (`recordPath`) to resolve accessor lambdas like
+ *     `u => u.address.city` into `['address', 'city']`
+ *   - **Structural operations** (`getByPath`, `setByPath`) for immutable deep updates
+ *   - **Draft proxy** (`createDraft`, `applyMutations`) powering `Record.produce()`
+ *   - **Deep equality** (`deepEqual`) for `Record.equals()` / `List.equals()`
+ */
 
 /** JavaScript primitive types (non-object, non-function). */
 export type Primitive = string | number | boolean | bigint | symbol | undefined | null;
@@ -11,17 +23,12 @@ export type Primitive = string | number | boolean | bigint | symbol | undefined 
  * Handles arrays, Maps, Sets, and plain objects. Functions are left as-is
  * since they are inherently referentially transparent in this context.
  */
-export type DeepReadonly<T> = T extends Primitive
-  ? T
-  : T extends ReadonlyArray<infer U>
-    ? ReadonlyArray<DeepReadonly<U>>
-    : T extends ReadonlyMap<infer K, infer V>
-      ? ReadonlyMap<DeepReadonly<K>, DeepReadonly<V>>
-      : T extends ReadonlySet<infer U>
-        ? ReadonlySet<DeepReadonly<U>>
-        : T extends (...args: infer A) => infer R
-          ? (...args: A) => R
-          : { readonly [K in keyof T]: DeepReadonly<T[K]> };
+export type DeepReadonly<T> = T extends Primitive ? T
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepReadonly<U>>
+  : T extends ReadonlyMap<infer K, infer V> ? ReadonlyMap<DeepReadonly<K>, DeepReadonly<V>>
+  : T extends ReadonlySet<infer U> ? ReadonlySet<DeepReadonly<U>>
+  : T extends (...args: infer A) => infer R ? (...args: A) => R
+  : { readonly [K in keyof T]: DeepReadonly<T[K]> };
 
 /**
  * Draft type for `produce()` recipes.
@@ -30,21 +37,16 @@ export type DeepReadonly<T> = T extends Primitive
  * `ReadonlyArray` so mutating methods like `.push()` are blocked
  * at the type level. The runtime proxy enforces the same constraint.
  */
-export type Draft<T> = T extends Primitive
-  ? T
-  : T extends ReadonlyArray<infer U>
-    ? ReadonlyArray<Draft<U>>
-    : T extends ReadonlyMap<infer K, infer V>
-      ? ReadonlyMap<Draft<K>, Draft<V>>
-      : T extends ReadonlySet<infer U>
-        ? ReadonlySet<Draft<U>>
-        : T extends (...args: infer A) => infer R
-          ? (...args: A) => R
-          : { -readonly [K in keyof T]: Draft<T[K]> };
+export type Draft<T> = T extends Primitive ? T
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<Draft<U>>
+  : T extends ReadonlyMap<infer K, infer V> ? ReadonlyMap<Draft<K>, Draft<V>>
+  : T extends ReadonlySet<infer U> ? ReadonlySet<Draft<U>>
+  : T extends (...args: infer A) => infer R ? (...args: A) => R
+  : { -readonly [K in keyof T]: Draft<T[K]> };
 
 /** Check whether `val` is a non-null object (excluding typed arrays). */
 export const isObjectLike = (val: unknown): val is Record<string | symbol, unknown> =>
-  val !== null && typeof val === 'object' && !ArrayBuffer.isView(val);
+  val !== null && typeof val === "object" && !ArrayBuffer.isView(val);
 
 /**
  * Recursively freeze an object and all nested properties.
@@ -63,12 +65,19 @@ export const deepFreezeRaw = (obj: unknown): void => {
   for (let i = 0; i < syms.length; i++) deepFreezeRaw((obj as Record<symbol, unknown>)[syms[i]!]);
 };
 
-// Pooled path recorder
+/**
+ * Pooled path recorder for `recordPath()`.
+ *
+ * A single proxy + buffer is reused across all non-reentrant calls to avoid
+ * allocating a new proxy and array for each `.set()` / `.update()` call.
+ * If reentrance is detected (e.g. nested accessor), `recordPathSlow` is
+ * used as a fallback with its own isolated proxy.
+ */
 let _pathBuf: string[] = [];
 let _pathRecording = false;
 const _pathHandler: ProxyHandler<object> = {
   get(_, prop) {
-    if (typeof prop === 'string') {
+    if (typeof prop === "string") {
       _pathBuf.push(prop);
       return _pathSentinel;
     }
@@ -94,11 +103,12 @@ export const recordPath = <T>(accessor: (obj: T) => unknown): string[] => {
   return result;
 };
 
+/** Reentrant fallback for `recordPath`. Allocates a fresh proxy per call. */
 const recordPathSlow = <T>(accessor: (obj: T) => unknown): string[] => {
   const path: string[] = [];
   const handler: ProxyHandler<object> = {
     get(_, prop) {
-      if (typeof prop === 'string') {
+      if (typeof prop === "string") {
         path.push(prop);
         return new Proxy({}, handler);
       }
@@ -137,26 +147,32 @@ export const setByPath = <T>(obj: T, path: readonly string[], value: unknown, de
   return { ...current, [key]: setByPath(child, path, value, depth + 1) } as T;
 };
 
-// Draft proxy
+// ── Draft proxy ─────────────────────────────────────────────────────────────
+// `produce()` uses a Proxy-based draft that records mutations as data.
+// The draft never mutates the original: all writes are captured as
+// `{ path, value }` entries, then replayed via `setByPath` to build
+// a structurally-shared copy of the original.
+
 /** A single mutation captured during a `produce()` draft session. */
 export interface Mutation {
   readonly path: readonly string[];
   readonly value: unknown;
 }
 
-const DRAFT_UNSET: unique symbol = Symbol('unset');
+/** Sentinel value for draft reads: distinguishes "no mutation recorded" from `undefined`. */
+const DRAFT_UNSET: unique symbol = Symbol("unset");
 
 /** Array methods that mutate in-place. These corrupt produce() because setByPath cannot replay them. */
 const MUTATING_ARRAY_METHODS: ReadonlySet<string> = new Set([
-  'push',
-  'pop',
-  'shift',
-  'unshift',
-  'splice',
-  'sort',
-  'reverse',
-  'fill',
-  'copyWithin',
+  "push",
+  "pop",
+  "shift",
+  "unshift",
+  "splice",
+  "sort",
+  "reverse",
+  "fill",
+  "copyWithin",
 ]);
 
 /** Search mutations in reverse for the most recent write to [...currentPath, prop]. */
@@ -209,7 +225,7 @@ export const createDraft = <T extends object>(
     : base;
   return new Proxy(target as T, {
     get(tgt, prop, receiver) {
-      if (typeof prop !== 'string') return Reflect.get(tgt, prop, receiver);
+      if (typeof prop !== "string") return Reflect.get(tgt, prop, receiver);
 
       if (Array.isArray(tgt) && MUTATING_ARRAY_METHODS.has(prop)) {
         throw new TypeError(
@@ -221,17 +237,19 @@ export const createDraft = <T extends object>(
       if (mutated !== DRAFT_UNSET) return mutated;
 
       const val = Reflect.get(tgt, prop, receiver);
-      if (isObjectLike(val))
+      if (isObjectLike(val)) {
         return createDraft(val as object, mutations, appendPath(currentPath, prop));
+      }
       return val;
     },
     set(_, prop, value) {
-      if (typeof prop === 'string') mutations.push({ path: appendPath(currentPath, prop), value });
+      if (typeof prop === "string") mutations.push({ path: appendPath(currentPath, prop), value });
       return true;
     },
     deleteProperty(_, prop) {
-      if (typeof prop === 'string')
+      if (typeof prop === "string") {
         mutations.push({ path: appendPath(currentPath, prop), value: undefined });
+      }
       return true;
     },
   }) as T;
@@ -246,6 +264,7 @@ export const applyMutations = <T>(base: T, mutations: readonly Mutation[]): T =>
   return result;
 };
 
+/** Array-specific deep equality. Extracted to keep `deepEqual` focused on dispatch. */
 const deepEqualArrays = (a: readonly unknown[], b: readonly unknown[]): boolean => {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -263,7 +282,7 @@ const deepEqualArrays = (a: readonly unknown[], b: readonly unknown[]): boolean 
  */
 export const deepEqual = (a: unknown, b: unknown): boolean => {
   if (Object.is(a, b)) return true;
-  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
   if (Array.isArray(a)) return Array.isArray(b) && deepEqualArrays(a, b);
   const aObj = a as Record<string, unknown>;
   const bObj = b as Record<string, unknown>;

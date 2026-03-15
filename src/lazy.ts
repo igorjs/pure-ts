@@ -1,11 +1,25 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// Lazy<T>
-// ═══════════════════════════════════════════════════════════════════════════════
+/**
+ * @module lazy
+ *
+ * Deferred computation with memoisation and deterministic cleanup.
+ *
+ * **Why Lazy instead of a plain closure?**
+ * A closure evaluates every time it's called. `Lazy` evaluates once, caches
+ * the result, and drops the closure reference so the captured scope can be
+ * garbage collected. This matters for expensive initialisations (config
+ * parsing, large dataset loading) that should compute at most once.
+ *
+ * **How disposal works:**
+ * `Lazy` implements `Disposable` (ES2024) so `using` declarations
+ * automatically release both the cached value and the thunk when the
+ * scope exits. Derived lazies (via `.map` / `.flatMap`) propagate
+ * disposal because they reference the parent's `.value` getter.
+ */
 
-import type { Option } from './option.js';
-import { None, Some } from './option.js';
-import type { Result } from './result.js';
-import { Err, Ok } from './result.js';
+import type { Option } from "./option.js";
+import { None, Some } from "./option.js";
+import type { Result } from "./result.js";
+import { Err, Ok } from "./result.js";
 
 /**
  * Deferred and cached computation. Evaluates the thunk at most once on first access.
@@ -35,7 +49,7 @@ export class Lazy<T> implements Disposable {
 
   /** Access the value, evaluating the thunk on first call. Throws if disposed. */
   get value(): T {
-    if (this._disposed) throw new TypeError('Cannot access disposed Lazy');
+    if (this._disposed) throw new TypeError("Cannot access disposed Lazy");
     if (!this._evaluated) {
       this._value = this._thunk!();
       this._thunk = null; // Release closure for GC
@@ -111,7 +125,7 @@ export class Lazy<T> implements Disposable {
 
   /** String representation showing evaluation state. */
   toString(): string {
-    if (this._disposed) return 'Lazy(<disposed>)';
-    return this._evaluated ? `Lazy(${String(this._value)})` : 'Lazy(<pending>)';
+    if (this._disposed) return "Lazy(<disposed>)";
+    return this._evaluated ? `Lazy(${String(this._value)})` : "Lazy(<pending>)";
   }
 }
