@@ -18,7 +18,7 @@
  * and cached in a separate WeakMap.
  */
 
-import { deepEqual, type DeepReadonly, isObjectLike } from "./internals.js";
+import { type DeepReadonly, deepEqual, isObjectLike } from "./internals.js";
 import type { Option } from "./option.js";
 import { None, Some } from "./option.js";
 import { createRecord } from "./record.js";
@@ -239,10 +239,10 @@ const LIST_HANDLER: ProxyHandler<readonly unknown[]> = {
       return (LIST_METHODS.get(target) as any)?.[prop];
     }
     if (
-      typeof prop === "string"
-      && prop.length > 0
-      && prop.charCodeAt(0) >= 48
-      && prop.charCodeAt(0) <= 57
+      typeof prop === "string" &&
+      prop.length > 0 &&
+      prop.charCodeAt(0) >= 48 &&
+      prop.charCodeAt(0) <= 57
     ) {
       const idx = Number(prop);
       if (Number.isInteger(idx) && idx >= 0 && idx < target.length) {

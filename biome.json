@@ -10,7 +10,7 @@
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "single",
+      "quoteStyle": "double",
       "trailingCommas": "all",
       "semicolons": "always",
       "arrowParentheses": "asNeeded"

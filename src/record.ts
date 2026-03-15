@@ -24,10 +24,10 @@
 import {
   applyMutations,
   createDraft,
-  deepEqual,
-  deepFreezeRaw,
   type DeepReadonly,
   type Draft,
+  deepEqual,
+  deepFreezeRaw,
   getByPath,
   isObjectLike,
   type Mutation,
@@ -77,12 +77,17 @@ export interface RecordMethods<T> {
  * This is what makes `user.address` return an ImmutableRecord with
  * .set(), .update(), .produce(), not just a plain readonly object.
  */
-export type _RecordProp<T> = T extends Primitive ? T
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<_RecordProp<U>>
-  : T extends ReadonlyMap<infer K, infer V> ? ReadonlyMap<_RecordProp<K>, _RecordProp<V>>
-  : T extends ReadonlySet<infer U> ? ReadonlySet<_RecordProp<U>>
-  : T extends (...args: any[]) => any ? T
-  : ImmutableRecord<T>;
+export type _RecordProp<T> = T extends Primitive
+  ? T
+  : T extends ReadonlyArray<infer U>
+    ? ReadonlyArray<_RecordProp<U>>
+    : T extends ReadonlyMap<infer K, infer V>
+      ? ReadonlyMap<_RecordProp<K>, _RecordProp<V>>
+      : T extends ReadonlySet<infer U>
+        ? ReadonlySet<_RecordProp<U>>
+        : T extends (...args: any[]) => any
+          ? T
+          : ImmutableRecord<T>;
 
 /**
  * An immutable object with type-safe update methods.
@@ -126,7 +131,7 @@ const getCachedChild = (parentRaw: object, key: string, childRaw: object): Immut
  * Value: a constructor whose prototype has getters/setters for data
  * keys and all RecordMethods.
  */
-const SHAPE_CACHE = new Map<string, new(raw: object) => any>();
+const SHAPE_CACHE = new Map<string, new (raw: object) => any>();
 
 /**
  * Generate (or retrieve from cache) a class for the given set of property keys.
@@ -135,7 +140,7 @@ const SHAPE_CACHE = new Map<string, new(raw: object) => any>();
  * `RecordMethods`. Objects with the same keys share a class, so V8 assigns
  * them the same hidden class for optimal inline cache performance.
  */
-const buildShapeClass = (keys: readonly string[]): new(raw: object) => any => {
+const buildShapeClass = (keys: readonly string[]): (new (raw: object) => any) => {
   const sorted = keys.slice().sort();
   const shapeKey = sorted.join("\0");
 
@@ -146,39 +151,39 @@ const buildShapeClass = (keys: readonly string[]): new(raw: object) => any => {
 
   // ── RecordMethods on prototype (shared across all instances of this shape) ──
 
-  proto.set = function<R>(this: any, accessor: (obj: any) => R, value: R) {
+  proto.set = function <R>(this: any, accessor: (obj: any) => R, value: R) {
     return createRecord(setByPath(this._raw, recordPath(accessor), value));
   };
 
-  proto.update = function<R>(this: any, accessor: (obj: any) => R, fn: (current: R) => R) {
+  proto.update = function <R>(this: any, accessor: (obj: any) => R, fn: (current: R) => R) {
     const path = recordPath(accessor);
     return createRecord(setByPath(this._raw, path, fn(getByPath(this._raw, path) as R)));
   };
 
-  proto.produce = function(this: any, recipe: (draft: any) => void) {
+  proto.produce = function (this: any, recipe: (draft: any) => void) {
     const mutations: Mutation[] = [];
     recipe(createDraft(this._raw, mutations));
     return createRecord(applyMutations(this._raw, mutations));
   };
 
-  proto.merge = function(this: any, partial: Record<string, unknown>) {
+  proto.merge = function (this: any, partial: Record<string, unknown>) {
     return createRecord({ ...this._raw, ...partial });
   };
 
-  proto.at = function<R>(this: any, accessor: (obj: any) => R): Option<R> {
+  proto.at = function <R>(this: any, accessor: (obj: any) => R): Option<R> {
     const val = getByPath(this._raw, recordPath(accessor));
     return val === undefined || val === null ? None : Some(val as R);
   };
 
-  proto.equals = function(this: any, other: any): boolean {
+  proto.equals = function (this: any, other: any): boolean {
     const otherRaw = other && typeof other === "object" && "_raw" in other ? other._raw : other;
     return this._raw === otherRaw || deepEqual(this._raw, otherRaw);
   };
 
-  proto.toMutable = function(this: any) {
+  proto.toMutable = function (this: any) {
     return structuredClone(this._raw);
   };
-  proto.toJSON = function(this: any) {
+  proto.toJSON = function (this: any) {
     return this._raw;
   };
 
@@ -216,7 +221,7 @@ const buildShapeClass = (keys: readonly string[]): new(raw: object) => any => {
   // ── Constructor ──
   const cls = function RecordInstance(this: any, raw: object) {
     this._raw = raw;
-  } as unknown as new(
+  } as unknown as new (
     raw: object,
   ) => any;
 

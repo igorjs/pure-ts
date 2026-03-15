@@ -1,12 +1,12 @@
-import { Program, Task } from '../../dist/index.js';
+import { Program, Task } from "../../dist/index.js";
 
 // Task never resolves (ignores abort) - only exits via double-signal force kill
 await Program(
-  'test',
+  "test",
   Task.fromPromise(
     () =>
       new Promise(resolve => {
-        setTimeout(() => resolve('timeout'), 60_000);
+        setTimeout(() => resolve("timeout"), 60_000);
       }),
   ),
 ).run();

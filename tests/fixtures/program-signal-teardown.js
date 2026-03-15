@@ -1,12 +1,12 @@
-import { Program, Task } from '../../dist/index.js';
+import { Program, Task } from "../../dist/index.js";
 
 // Task ignores abort - relies on teardown timeout to force-exit
 await Program(
-  'test',
+  "test",
   Task.fromPromise(
     () =>
       new Promise(resolve => {
-        setTimeout(() => resolve('timeout'), 60_000);
+        setTimeout(() => resolve("timeout"), 60_000);
       }),
   ),
   { teardownTimeoutMs: 200 },

@@ -23,12 +23,17 @@ export type Primitive = string | number | boolean | bigint | symbol | undefined 
  * Handles arrays, Maps, Sets, and plain objects. Functions are left as-is
  * since they are inherently referentially transparent in this context.
  */
-export type DeepReadonly<T> = T extends Primitive ? T
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepReadonly<U>>
-  : T extends ReadonlyMap<infer K, infer V> ? ReadonlyMap<DeepReadonly<K>, DeepReadonly<V>>
-  : T extends ReadonlySet<infer U> ? ReadonlySet<DeepReadonly<U>>
-  : T extends (...args: infer A) => infer R ? (...args: A) => R
-  : { readonly [K in keyof T]: DeepReadonly<T[K]> };
+export type DeepReadonly<T> = T extends Primitive
+  ? T
+  : T extends ReadonlyArray<infer U>
+    ? ReadonlyArray<DeepReadonly<U>>
+    : T extends ReadonlyMap<infer K, infer V>
+      ? ReadonlyMap<DeepReadonly<K>, DeepReadonly<V>>
+      : T extends ReadonlySet<infer U>
+        ? ReadonlySet<DeepReadonly<U>>
+        : T extends (...args: infer A) => infer R
+          ? (...args: A) => R
+          : { readonly [K in keyof T]: DeepReadonly<T[K]> };
 
 /**
  * Draft type for `produce()` recipes.
@@ -37,12 +42,17 @@ export type DeepReadonly<T> = T extends Primitive ? T
  * `ReadonlyArray` so mutating methods like `.push()` are blocked
  * at the type level. The runtime proxy enforces the same constraint.
  */
-export type Draft<T> = T extends Primitive ? T
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<Draft<U>>
-  : T extends ReadonlyMap<infer K, infer V> ? ReadonlyMap<Draft<K>, Draft<V>>
-  : T extends ReadonlySet<infer U> ? ReadonlySet<Draft<U>>
-  : T extends (...args: infer A) => infer R ? (...args: A) => R
-  : { -readonly [K in keyof T]: Draft<T[K]> };
+export type Draft<T> = T extends Primitive
+  ? T
+  : T extends ReadonlyArray<infer U>
+    ? ReadonlyArray<Draft<U>>
+    : T extends ReadonlyMap<infer K, infer V>
+      ? ReadonlyMap<Draft<K>, Draft<V>>
+      : T extends ReadonlySet<infer U>
+        ? ReadonlySet<Draft<U>>
+        : T extends (...args: infer A) => infer R
+          ? (...args: A) => R
+          : { -readonly [K in keyof T]: Draft<T[K]> };
 
 /** Check whether `val` is a non-null object (excluding typed arrays). */
 export const isObjectLike = (val: unknown): val is Record<string | symbol, unknown> =>

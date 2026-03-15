@@ -7,26 +7,26 @@
  * Run: node --test tests/program.test.js
  */
 
-import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
-import { before, describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { before, describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 
-const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function spawnFixture(name) {
   const child = spawn(process.execPath, [`tests/fixtures/${name}`], {
     cwd: projectRoot,
-    env: { ...process.env, NODE_NO_WARNINGS: '1' },
+    env: { ...process.env, NODE_NO_WARNINGS: "1" },
   });
-  const out = { stdout: '', stderr: '' };
-  child.stdout.on('data', d => {
+  const out = { stdout: "", stderr: "" };
+  child.stdout.on("data", d => {
     out.stdout += d;
   });
-  child.stderr.on('data', d => {
+  child.stderr.on("data", d => {
     out.stderr += d;
   });
   return { child, out };
@@ -38,10 +38,10 @@ function waitForExit(child, out, timeoutMs = 10_000) {
   }
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      reject(new Error('Timed out waiting for exit'));
+      child.kill("SIGKILL");
+      reject(new Error("Timed out waiting for exit"));
     }, timeoutMs);
-    child.on('close', code => {
+    child.on("close", code => {
       clearTimeout(timer);
       resolve({ code, stdout: out.stdout, stderr: out.stderr });
     });
@@ -60,15 +60,15 @@ function waitForOutput(child, out, field, text, timeoutMs = 5000) {
       () => reject(new Error(`Timed out waiting for "${text}" in ${field}`)),
       timeoutMs,
     );
-    const stream = field === 'stdout' ? child.stdout : child.stderr;
+    const stream = field === "stdout" ? child.stdout : child.stderr;
     const onData = () => {
       if (out[field].includes(text)) {
         clearTimeout(timer);
-        stream.off('data', onData);
+        stream.off("data", onData);
         resolve();
       }
     };
-    stream.on('data', onData);
+    stream.on("data", onData);
   });
 }
 
@@ -76,150 +76,150 @@ const LOG_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[test\] /;
 
 // ── Ok path ─────────────────────────────────────────────────────────────────
 
-describe('Program.run() Ok path', () => {
+describe("Program.run() Ok path", () => {
   let r;
   before(async () => {
-    r = await runFixture('program-ok.js');
+    r = await runFixture("program-ok.js");
   });
 
-  it('exits 0 on Ok result', () => {
+  it("exits 0 on Ok result", () => {
     assert.equal(r.code, 0);
   });
 
   it('logs "started" then "completed" to stdout', () => {
-    assert.ok(r.stdout.includes('started'));
-    assert.ok(r.stdout.includes('completed'));
-    assert.ok(r.stdout.indexOf('started') < r.stdout.indexOf('completed'));
+    assert.ok(r.stdout.includes("started"));
+    assert.ok(r.stdout.includes("completed"));
+    assert.ok(r.stdout.indexOf("started") < r.stdout.indexOf("completed"));
   });
 
-  it('log lines match ISO timestamp and [name] tag format', () => {
-    for (const line of r.stdout.trim().split('\n')) {
+  it("log lines match ISO timestamp and [name] tag format", () => {
+    for (const line of r.stdout.trim().split("\n")) {
       assert.match(line, LOG_RE);
     }
   });
 
-  it('produces no stderr output', () => {
-    assert.equal(r.stderr, '');
+  it("produces no stderr output", () => {
+    assert.equal(r.stderr, "");
   });
 });
 
 // ── Err path ────────────────────────────────────────────────────────────────
 
-describe('Program.run() Err path', () => {
-  it('exits 1 on Err with string', async () => {
-    const r = await runFixture('program-err-string.js');
+describe("Program.run() Err path", () => {
+  it("exits 1 on Err with string", async () => {
+    const r = await runFixture("program-err-string.js");
     assert.equal(r.code, 1);
-    assert.ok(r.stdout.includes('started'));
-    assert.ok(r.stderr.includes('error: fail'));
+    assert.ok(r.stdout.includes("started"));
+    assert.ok(r.stderr.includes("error: fail"));
   });
 
-  it('exits 1 on Err with Error object', async () => {
-    const r = await runFixture('program-err-error.js');
+  it("exits 1 on Err with Error object", async () => {
+    const r = await runFixture("program-err-error.js");
     assert.equal(r.code, 1);
-    assert.ok(r.stderr.includes('error: Error: boom'));
+    assert.ok(r.stderr.includes("error: Error: boom"));
   });
 
-  it('exits 1 on Err with plain object (JSON.stringify)', async () => {
-    const r = await runFixture('program-err-object.js');
+  it("exits 1 on Err with plain object (JSON.stringify)", async () => {
+    const r = await runFixture("program-err-object.js");
     assert.equal(r.code, 1);
     assert.ok(r.stderr.includes('error: {"code":42}'));
   });
 
-  it('exits 1 on Err with custom toString', async () => {
-    const r = await runFixture('program-err-custom-tostring.js');
+  it("exits 1 on Err with custom toString", async () => {
+    const r = await runFixture("program-err-custom-tostring.js");
     assert.equal(r.code, 1);
-    assert.ok(r.stderr.includes('error: CustomErr'));
+    assert.ok(r.stderr.includes("error: CustomErr"));
   });
 
-  it('exits 1 on Err with circular object (fallback)', async () => {
-    const r = await runFixture('program-err-circular.js');
+  it("exits 1 on Err with circular object (fallback)", async () => {
+    const r = await runFixture("program-err-circular.js");
     assert.equal(r.code, 1);
-    assert.ok(r.stderr.includes('error: [object Object]'));
+    assert.ok(r.stderr.includes("error: [object Object]"));
   });
 
-  it('exits 1 on Err with ErrType formatted as Tag(CODE): message', async () => {
-    const r = await runFixture('program-errtype.js');
+  it("exits 1 on Err with ErrType formatted as Tag(CODE): message", async () => {
+    const r = await runFixture("program-errtype.js");
     assert.equal(r.code, 1);
-    assert.ok(r.stderr.includes('error: NotFound(NOT_FOUND): missing'));
+    assert.ok(r.stderr.includes("error: NotFound(NOT_FOUND): missing"));
   });
 });
 
 // ── Unhandled exception ─────────────────────────────────────────────────────
 
-describe('Program.run() unhandled exception', () => {
-  it('exits 1 and logs error when task throws', async () => {
-    const r = await runFixture('program-throw.js');
+describe("Program.run() unhandled exception", () => {
+  it("exits 1 and logs error when task throws", async () => {
+    const r = await runFixture("program-throw.js");
     assert.equal(r.code, 1);
-    assert.ok(r.stderr.includes('error: Error: kaboom'));
+    assert.ok(r.stderr.includes("error: Error: kaboom"));
   });
 });
 
 // ── Effect function ─────────────────────────────────────────────────────────
 
-describe('Program.run() effect function', () => {
-  it('accepts (signal) => Task form and exits 0', async () => {
-    const r = await runFixture('program-effect-fn.js');
+describe("Program.run() effect function", () => {
+  it("accepts (signal) => Task form and exits 0", async () => {
+    const r = await runFixture("program-effect-fn.js");
     assert.equal(r.code, 0);
-    assert.ok(r.stdout.includes('started'));
-    assert.ok(r.stdout.includes('completed'));
+    assert.ok(r.stdout.includes("started"));
+    assert.ok(r.stdout.includes("completed"));
   });
 });
 
 // ── Signal handling ─────────────────────────────────────────────────────────
 
-describe('Program.run() signal handling', () => {
+describe("Program.run() signal handling", () => {
   it('SIGINT logs "interrupted" to stderr and exits 130', async () => {
-    const { child, out } = spawnFixture('program-signal-wait.js');
-    await waitForOutput(child, out, 'stdout', 'started');
+    const { child, out } = spawnFixture("program-signal-wait.js");
+    await waitForOutput(child, out, "stdout", "started");
     const exit = waitForExit(child, out);
-    child.kill('SIGINT');
+    child.kill("SIGINT");
     const r = await exit;
     assert.equal(r.code, 130);
-    assert.ok(r.stderr.includes('interrupted'));
+    assert.ok(r.stderr.includes("interrupted"));
   });
 
   it('SIGTERM logs "interrupted" to stderr and exits 130', async () => {
-    const { child, out } = spawnFixture('program-signal-wait.js');
-    await waitForOutput(child, out, 'stdout', 'started');
+    const { child, out } = spawnFixture("program-signal-wait.js");
+    await waitForOutput(child, out, "stdout", "started");
     const exit = waitForExit(child, out);
-    child.kill('SIGTERM');
+    child.kill("SIGTERM");
     const r = await exit;
     assert.equal(r.code, 130);
-    assert.ok(r.stderr.includes('interrupted'));
+    assert.ok(r.stderr.includes("interrupted"));
   });
 
-  it('second SIGINT force-exits with 130', async () => {
-    const { child, out } = spawnFixture('program-signal-hang.js');
-    await waitForOutput(child, out, 'stdout', 'started');
+  it("second SIGINT force-exits with 130", async () => {
+    const { child, out } = spawnFixture("program-signal-hang.js");
+    await waitForOutput(child, out, "stdout", "started");
     const exit = waitForExit(child, out);
-    child.kill('SIGINT');
-    await waitForOutput(child, out, 'stderr', 'interrupted');
-    child.kill('SIGINT');
+    child.kill("SIGINT");
+    await waitForOutput(child, out, "stderr", "interrupted");
+    child.kill("SIGINT");
     const r = await exit;
     assert.equal(r.code, 130);
   });
 
-  it('interrupt takes priority over Ok result', async () => {
-    const { child, out } = spawnFixture('program-signal-ok.js');
-    await waitForOutput(child, out, 'stdout', 'started');
+  it("interrupt takes priority over Ok result", async () => {
+    const { child, out } = spawnFixture("program-signal-ok.js");
+    await waitForOutput(child, out, "stdout", "started");
     const exit = waitForExit(child, out);
-    child.kill('SIGINT');
+    child.kill("SIGINT");
     const r = await exit;
     assert.equal(r.code, 130);
-    assert.ok(!r.stdout.includes('completed'));
-    assert.ok(r.stderr.includes('interrupted'));
+    assert.ok(!r.stdout.includes("completed"));
+    assert.ok(r.stderr.includes("interrupted"));
   });
 
-  it('teardown timeout force-exits without second signal', async () => {
-    const { child, out } = spawnFixture('program-signal-teardown.js');
-    await waitForOutput(child, out, 'stdout', 'started');
+  it("teardown timeout force-exits without second signal", async () => {
+    const { child, out } = spawnFixture("program-signal-teardown.js");
+    await waitForOutput(child, out, "stdout", "started");
     const start = Date.now();
     const exit = waitForExit(child, out);
-    child.kill('SIGINT');
+    child.kill("SIGINT");
     const r = await exit;
     const elapsed = Date.now() - start;
     assert.equal(r.code, 130);
-    assert.ok(r.stderr.includes('interrupted'));
+    assert.ok(r.stderr.includes("interrupted"));
     assert.ok(elapsed < 3000, `Expected exit within 3s, took ${elapsed}ms`);
   });
 });

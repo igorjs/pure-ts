@@ -102,19 +102,22 @@ const createSchema = <T>(rawParse: (input: unknown) => Result<T, SchemaError>): 
       if (r.isErr) return r as unknown as Result<U, SchemaError>;
       return Ok(fn(r.value));
     }),
-  optional: () => createSchema<T | undefined>(input => (input === undefined ? Ok(undefined) : rawParse(input))),
+  optional: () =>
+    createSchema<T | undefined>(input => (input === undefined ? Ok(undefined) : rawParse(input))),
   default: (fallback: T) =>
-    createSchema<T>(input => input === undefined || input === null ? Ok(fallback) : rawParse(input)),
+    createSchema<T>(input =>
+      input === undefined || input === null ? Ok(fallback) : rawParse(input),
+    ),
 });
 
 const stringSchema: SchemaType<string> = createSchema<string>(i =>
-  typeof i === "string" ? Ok(i) : schemaErr([], "string", i)
+  typeof i === "string" ? Ok(i) : schemaErr([], "string", i),
 );
 const numberSchema: SchemaType<number> = createSchema<number>(i =>
-  typeof i === "number" && !Number.isNaN(i) ? Ok(i) : schemaErr([], "number", i)
+  typeof i === "number" && !Number.isNaN(i) ? Ok(i) : schemaErr([], "number", i),
 );
 const booleanSchema: SchemaType<boolean> = createSchema<boolean>(i =>
-  typeof i === "boolean" ? Ok(i) : schemaErr([], "boolean", i)
+  typeof i === "boolean" ? Ok(i) : schemaErr([], "boolean", i),
 );
 
 /** Prepend a field name to the error path for nested validation diagnostics. */

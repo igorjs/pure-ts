@@ -103,7 +103,8 @@ export function Program<T, E>(
   effect: Task<T, E> | ((signal: AbortSignal) => Task<T, E>),
   options?: { readonly teardownTimeoutMs?: number },
 ): Program<T, E> {
-  const toTask: (signal: AbortSignal) => Task<T, E> = typeof effect === "function" ? effect : () => effect;
+  const toTask: (signal: AbortSignal) => Task<T, E> =
+    typeof effect === "function" ? effect : () => effect;
 
   const tag = `[${name}]`;
   const teardownTimeoutMs = options?.teardownTimeoutMs;

@@ -71,7 +71,8 @@ export const List = <T>(items: readonly T[]): ImmutableList<T> => createListProx
  * source[0].id = 999; // safe[0].id is still 1
  * ```
  */
-List.clone = <T>(items: readonly T[]): ImmutableList<T> => createListProxy(structuredClone(items) as T[]);
+List.clone = <T>(items: readonly T[]): ImmutableList<T> =>
+  createListProxy(structuredClone(items) as T[]);
 
 /**
  * Type guard: returns `true` if `val` is an ImmutableRecord or ImmutableList.
@@ -85,7 +86,7 @@ List.clone = <T>(items: readonly T[]): ImmutableList<T> => createListProxy(struc
 export const isImmutable = (
   val: unknown,
 ): val is ImmutableRecord<object> | ImmutableList<unknown> =>
-  val !== null
-  && typeof val === "object"
-  && "$immutable" in val
-  && (val as Record<string, unknown>)["$immutable"] === true;
+  val !== null &&
+  typeof val === "object" &&
+  "$immutable" in val &&
+  (val as Record<string, unknown>)["$immutable"] === true;

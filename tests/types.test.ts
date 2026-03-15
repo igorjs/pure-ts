@@ -33,18 +33,18 @@ import {
   Task,
   type Type,
   tryCatch,
-} from '../src/index.js';
+} from "../src/index.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Record - property types
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const user = Record({
-  name: 'Alice',
+  name: "Alice",
   age: 30,
   active: true,
-  address: { city: 'Sydney', geo: { lat: -33.87, lng: 151.21 } },
-  tags: ['fp', 'ts'],
+  address: { city: "Sydney", geo: { lat: -33.87, lng: 151.21 } },
+  tags: ["fp", "ts"],
 });
 
 // Reads infer widened types
@@ -56,7 +56,7 @@ const _lat: number = user.address.geo.lat;
 
 // Nested records have methods
 const _nestedSet: ImmutableRecord<{ city: string; geo: { lat: number; lng: number } }> =
-  user.address.set(a => a.city, 'Melbourne');
+  user.address.set(a => a.city, "Melbourne");
 
 // @ts-expect-error - wrong type assignment
 const _wrongType: number = user.name;
@@ -65,24 +65,24 @@ const _wrongType: number = user.name;
 const _nope = user.nonexistent;
 
 // @ts-expect-error - readonly
-user.name = 'X';
+user.name = "X";
 
 // @ts-expect-error - nested readonly
-user.address.city = 'X';
+user.address.city = "X";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Record.set - type-safe value
 // ═══════════════════════════════════════════════════════════════════════════════
 
-user.set(u => u.name, 'New');
+user.set(u => u.name, "New");
 user.set(u => u.age, 40);
-user.set(u => u.address.city, 'San Francisco');
+user.set(u => u.address.city, "San Francisco");
 
 // @ts-expect-error - number ≠ string
 user.set(u => u.name, 42);
 
 // @ts-expect-error - string ≠ number
-user.set(u => u.age, 'old');
+user.set(u => u.age, "old");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Record.update - fn signature
@@ -108,20 +108,20 @@ user.update(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 user.produce(d => {
-  d.name = 'New';
+  d.name = "New";
   d.age = 40;
-  d.address.city = 'San Francisco';
+  d.address.city = "San Francisco";
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Record.merge - Partial<T>
 // ═══════════════════════════════════════════════════════════════════════════════
 
-user.merge({ name: 'New' });
-user.merge({ age: 40, name: 'New' });
+user.merge({ name: "New" });
+user.merge({ age: 40, name: "New" });
 
 // @ts-expect-error - wrong type in partial
-user.merge({ age: 'old' });
+user.merge({ age: "old" });
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Record.at → Option
@@ -135,11 +135,11 @@ const _optAge: Option<number> = user.at(u => u.age);
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const other = Record({
-  name: 'Bob',
+  name: "Bob",
   age: 25,
   active: false,
-  address: { city: 'Melbourne', geo: { lat: -37.81, lng: 144.96 } },
-  tags: ['x'],
+  address: { city: "Melbourne", geo: { lat: -37.81, lng: 144.96 } },
+  tags: ["x"],
 });
 const _eq: boolean = user.equals(other);
 
@@ -157,10 +157,10 @@ const _found: Option<number> = nums.find(n => n > 2);
 const _first: Option<number> = nums.first();
 
 // @ts-expect-error - wrong append type
-nums.append('x');
+nums.append("x");
 
 // @ts-expect-error - wrong setAt type
-nums.setAt(0, 'x');
+nums.setAt(0, "x");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Result - type flow
@@ -168,11 +168,11 @@ nums.setAt(0, 'x');
 
 const res: Result<number, string> = Ok(42);
 const _mapped: Result<string, string> = res.map(String);
-const _chained: Result<boolean, string> = res.flatMap(n => (n > 0 ? Ok(true) : Err('neg')));
+const _chained: Result<boolean, string> = res.flatMap(n => (n > 0 ? Ok(true) : Err("neg")));
 const _unwrapped: number = res.unwrapOr(0);
 
 // @ts-expect-error - wrong fallback type
-const _bad: number = res.unwrapOr('x');
+const _bad: number = res.unwrapOr("x");
 
 // Result.ap type flow
 const _apResult: Result<string, string> = res.ap(Ok((n: number) => String(n)));
@@ -183,10 +183,10 @@ const _apResult: Result<string, string> = res.ap(Ok((n: number) => String(n)));
 
 const optN: Option<number> = Some(42);
 const _optS: Option<string> = optN.map(String);
-const _toRes: Result<number, string> = optN.toResult('missing');
+const _toRes: Result<number, string> = optN.toResult("missing");
 
 // @ts-expect-error - wrong unwrapOr type
-const _badOr: number = optN.unwrapOr('x');
+const _badOr: number = optN.unwrapOr("x");
 
 // Option.ap type flow
 const _apOption: Option<string> = optN.ap(Some((n: number) => String(n)));
@@ -206,9 +206,9 @@ const UserSchema = Schema.object({
 });
 
 type User = Schema.Infer<typeof UserSchema>;
-type _T1 = User['name'] extends string ? true : false;
+type _T1 = User["name"] extends string ? true : false;
 const _t1: _T1 = true;
-type _T2 = User['address']['geo']['lat'] extends number ? true : false;
+type _T2 = User["address"]["geo"]["lat"] extends number ? true : false;
 const _t2: _T2 = true;
 
 const parsed = UserSchema.parse({});
@@ -224,18 +224,18 @@ if (parsed.isOk) {
 // Type<Name, Base> - nominal
 // ═══════════════════════════════════════════════════════════════════════════════
 
-type UserId = Type<'UserId', string>;
-type PostId = Type<'PostId', string>;
+type UserId = Type<"UserId", string>;
+type PostId = Type<"PostId", string>;
 declare function getUser(id: UserId): void;
-const uid = 'u_001' as UserId;
-const pid = 'p_001' as PostId;
+const uid = "u_001" as UserId;
+const pid = "p_001" as PostId;
 getUser(uid);
 
 // @ts-expect-error - PostId ≠ UserId
 getUser(pid);
 
 // @ts-expect-error - plain string ≠ UserId
-getUser('u_001');
+getUser("u_001");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // pipe / flow - inference
@@ -246,7 +246,7 @@ const _fn = flow(
   (s: string) => s.length,
   (n: number) => n > 5,
 );
-const _fr: boolean = _fn('hello');
+const _fr: boolean = _fn("hello");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Lazy / Task - types preserved
@@ -267,7 +267,7 @@ const _tm: Task<string, string> = task.map(String);
 const _memoized: Task<number, string> = task.memoize();
 
 // Task.timeout preserves T, uses same E
-const _timed: Task<number, string> = task.timeout(1000, () => 'timeout');
+const _timed: Task<number, string> = task.timeout(1000, () => "timeout");
 
 // Task.retry preserves types
 const _retried: Task<number, string> = task.retry(3);
@@ -290,42 +290,42 @@ const _clonedId: number = cloned[0]!.id;
 // ErrType - literal type narrowing
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const NotFound = ErrType('NotFound', 'NOT_FOUND');
-const Forbidden = ErrType('Forbidden', 'FORBIDDEN');
+const NotFound = ErrType("NotFound", "NOT_FOUND");
+const Forbidden = ErrType("Forbidden", "FORBIDDEN");
 
 // Constructor type is inferred
-const _ctor: ErrTypeConstructor<'NotFound', 'NOT_FOUND'> = NotFound;
+const _ctor: ErrTypeConstructor<"NotFound", "NOT_FOUND"> = NotFound;
 
 // Instance has literal types on tag and code
-const nfErr = NotFound('gone');
-const _nfTag: 'NotFound' = nfErr.tag;
-const _nfName: 'NotFound' = nfErr.name;
-const _nfCode: 'NOT_FOUND' = nfErr.code;
+const nfErr = NotFound("gone");
+const _nfTag: "NotFound" = nfErr.tag;
+const _nfName: "NotFound" = nfErr.name;
+const _nfCode: "NOT_FOUND" = nfErr.code;
 const _nfMsg: string = nfErr.message;
 const _nfMeta: Readonly<Record<string, unknown>> = nfErr.metadata;
 const _nfTs: number = nfErr.timestamp;
 const _nfStack: string | undefined = nfErr.stack;
 
 // @ts-expect-error - tag literal mismatch
-const _wrongTag: 'Forbidden' = nfErr.tag;
+const _wrongTag: "Forbidden" = nfErr.tag;
 
 // @ts-expect-error - code literal mismatch
-const _wrongCode: 'FORBIDDEN' = nfErr.code;
+const _wrongCode: "FORBIDDEN" = nfErr.code;
 
 // toResult() preserves error type
-const _nfResult: Result<string, ErrType<'NotFound', 'NOT_FOUND'>> = nfErr.toResult<string>();
+const _nfResult: Result<string, ErrType<"NotFound", "NOT_FOUND">> = nfErr.toResult<string>();
 
 // Discriminated union narrowing via switch on tag
-type AppError = ErrType<'NotFound', 'NOT_FOUND'> | ErrType<'Forbidden', 'FORBIDDEN'>;
+type AppError = ErrType<"NotFound", "NOT_FOUND"> | ErrType<"Forbidden", "FORBIDDEN">;
 
 const appErr: AppError = nfErr;
 switch (appErr.tag) {
-  case 'NotFound': {
-    const _c: 'NOT_FOUND' = appErr.code;
+  case "NotFound": {
+    const _c: "NOT_FOUND" = appErr.code;
     break;
   }
-  case 'Forbidden': {
-    const _c: 'FORBIDDEN' = appErr.code;
+  case "Forbidden": {
+    const _c: "FORBIDDEN" = appErr.code;
     break;
   }
 }
@@ -333,8 +333,8 @@ switch (appErr.tag) {
 // Constructor.is() narrows
 declare const unknownErr: AppError;
 if (NotFound.is(unknownErr)) {
-  const _narrowedTag: 'NotFound' = unknownErr.tag;
-  const _narrowedCode: 'NOT_FOUND' = unknownErr.code;
+  const _narrowedTag: "NotFound" = unknownErr.tag;
+  const _narrowedCode: "NOT_FOUND" = unknownErr.code;
 }
 
 // ErrType.is() general guard
@@ -346,8 +346,8 @@ if (ErrType.is(mystery)) {
 }
 
 // Constructor.tag and .code are literal types
-const _ctorTag: 'NotFound' = NotFound.tag;
-const _ctorCode: 'NOT_FOUND' = NotFound.code;
+const _ctorTag: "NotFound" = NotFound.tag;
+const _ctorCode: "NOT_FOUND" = NotFound.code;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Result namespace - static utilities
@@ -355,7 +355,7 @@ const _ctorCode: 'NOT_FOUND' = NotFound.code;
 
 // Result.Ok / Result.Err produce correct types
 const _nsOk: Result<number, never> = Result.Ok(42);
-const _nsErr: Result<never, string> = Result.Err('fail');
+const _nsErr: Result<never, string> = Result.Err("fail");
 
 // Result.tryCatch returns Result
 const _nsTry: Result<number, string> = Result.tryCatch(() => 42, String);
@@ -388,7 +388,7 @@ const _nsSome: Option<number> = Option.Some(42);
 const _nsNone: Option<never> = Option.None;
 
 // Option.fromNullable returns Option
-const _nsFrom: Option<string> = Option.fromNullable('hello' as string | null);
+const _nsFrom: Option<string> = Option.fromNullable("hello" as string | null);
 
 // Option.collect returns Option of readonly array
 const _nsOptCollect: Option<readonly number[]> = Option.collect([Some(1), Some(2)]);
@@ -432,12 +432,12 @@ const _tryRes: Result<number, string> = tryCatch(() => 42, String);
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Program from Task preserves types
-const _progTask: ProgramType<number, never> = Program('test', Task.of(42));
+const _progTask: ProgramType<number, never> = Program("test", Task.of(42));
 
 // Program from effect function preserves types
 const _progFn: ProgramType<string, string> = Program(
-  'test',
-  (_signal: AbortSignal) => new Task<string, string>(async () => Ok('done')),
+  "test",
+  (_signal: AbortSignal) => new Task<string, string>(async () => Ok("done")),
 );
 
 // execute() returns Promise<Result<T, E>>

@@ -1,3 +1,3 @@
-import { Err, Program, Task } from '../../dist/index.js';
+import { Err, Program, Task } from "../../dist/index.js";
 
-await Program('test', Task.fromResult(Err('fail'))).run();
+await Program("test", Task.fromResult(Err("fail"))).run();

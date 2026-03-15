@@ -1,8 +1,8 @@
-import { Err, Program, Task } from '../../dist/index.js';
+import { Err, Program, Task } from "../../dist/index.js";
 
 const custom = {
   toString() {
-    return 'CustomErr';
+    return "CustomErr";
   },
 };
-await Program('test', Task.fromResult(Err(custom))).run();
+await Program("test", Task.fromResult(Err(custom))).run();

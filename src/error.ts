@@ -55,12 +55,12 @@ const isErrType = (value: unknown): value is ErrType<string, string> => {
   if (value === null || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   return (
-    typeof v["tag"] === "string"
-    && typeof v["code"] === "string"
-    && typeof v["message"] === "string"
-    && typeof v["metadata"] === "object"
-    && v["metadata"] !== null
-    && typeof v["timestamp"] === "number"
+    typeof v["tag"] === "string" &&
+    typeof v["code"] === "string" &&
+    typeof v["message"] === "string" &&
+    typeof v["metadata"] === "object" &&
+    v["metadata"] !== null &&
+    typeof v["timestamp"] === "number"
   );
 };
 
@@ -261,16 +261,13 @@ export const ErrType: {
     const ctor = (message: string, metadata?: Record<string, unknown>): ErrType<Tag, Code> =>
       new ErrTypeImpl(tag, resolvedCode, message, metadata ?? {}, captureStack());
 
-    return Object.assign(
-      ctor,
-      {
-        tag,
-        code: resolvedCode,
-        is(value: unknown): value is ErrType<Tag, Code> {
-          return isErrType(value) && value.tag === tag && value.code === resolvedCode;
-        },
-      } as const,
-    );
+    return Object.assign(ctor, {
+      tag,
+      code: resolvedCode,
+      is(value: unknown): value is ErrType<Tag, Code> {
+        return isErrType(value) && value.tag === tag && value.code === resolvedCode;
+      },
+    } as const);
   },
   {
     is: isErrType,

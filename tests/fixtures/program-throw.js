@@ -1,8 +1,8 @@
-import { Program, Task } from '../../dist/index.js';
+import { Program, Task } from "../../dist/index.js";
 
 await Program(
-  'test',
+  "test",
   Task.of(42).map(() => {
-    throw new Error('kaboom');
+    throw new Error("kaboom");
   }),
 ).run();

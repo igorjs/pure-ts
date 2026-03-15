@@ -154,7 +154,7 @@ export class Task<T, E> {
       Promise.race([
         this._run(),
         new Promise<Result<T, E>>(resolve => setTimeout(() => resolve(Err(onTimeout())), ms)),
-      ])
+      ]),
     );
   }
 
