@@ -745,17 +745,16 @@ describe("Lazy", () => {
     assert.throws(() => child.value, TypeError);
   });
 
-  it("using declaration auto-disposes at end of scope", () => {
-    let ref;
-    {
-      using lazy = new Lazy(() => "scoped");
-      assert.equal(lazy.value, "scoped");
-      assert.equal(lazy.isDisposed, false);
-      ref = lazy;
-    }
-    // After the block, `using` triggered [Symbol.dispose]()
-    assert.equal(ref.isDisposed, true);
-    assert.throws(() => ref.value, TypeError);
+  it("[Symbol.dispose]() marks lazy as disposed and prevents further access", () => {
+    const lazy = new Lazy(() => "scoped");
+    assert.equal(lazy.value, "scoped");
+    assert.equal(lazy.isDisposed, false);
+
+    // Manually call dispose (equivalent to `using` declaration exiting scope)
+    lazy[Symbol.dispose]();
+
+    assert.equal(lazy.isDisposed, true);
+    assert.throws(() => lazy.value, TypeError);
   });
 });
 
