@@ -76,15 +76,20 @@ export interface RecordMethods<T> {
  *
  * This is what makes `user.address` return an ImmutableRecord with
  * .set(), .update(), .produce(), not just a plain readonly object.
+ *
+ * Exported because {@link ImmutableRecord} references it in its mapped
+ * type definition. TypeScript's declaration emit requires referenced types
+ * to be exported for `.d.ts` generation (JSR slow-types constraint).
+ * Not re-exported from `index.ts`: consumers should not use this directly.
  */
-export type _RecordProp<T> = T extends Primitive
+export type RecordProp<T> = T extends Primitive
   ? T
   : T extends ReadonlyArray<infer U>
-    ? ReadonlyArray<_RecordProp<U>>
+    ? ReadonlyArray<RecordProp<U>>
     : T extends ReadonlyMap<infer K, infer V>
-      ? ReadonlyMap<_RecordProp<K>, _RecordProp<V>>
+      ? ReadonlyMap<RecordProp<K>, RecordProp<V>>
       : T extends ReadonlySet<infer U>
-        ? ReadonlySet<_RecordProp<U>>
+        ? ReadonlySet<RecordProp<U>>
         : T extends (...args: any[]) => any
           ? T
           : ImmutableRecord<T>;
@@ -96,7 +101,7 @@ export type _RecordProp<T> = T extends Primitive
  * frozen and accessed via generated getters. Nested objects are lazily
  * wrapped as their own ImmutableRecords.
  */
-export type ImmutableRecord<T> = { readonly [K in keyof T]: _RecordProp<T[K]> } & RecordMethods<T>;
+export type ImmutableRecord<T> = { readonly [K in keyof T]: RecordProp<T[K]> } & RecordMethods<T>;
 
 /**
  * Child Record cache: `parent raw object -> key -> wrapped child`.
