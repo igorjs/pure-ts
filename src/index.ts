@@ -51,6 +51,7 @@ export {
 } from "./async/circuit-breaker.js";
 export { Lazy } from "./async/lazy.js";
 export { Retry, type RetryPolicy } from "./async/retry.js";
+export { Stream } from "./async/stream.js";
 export { Task } from "./async/task.js";
 export { Eq } from "./core/eq.js";
 export { Lens, LensOptional } from "./core/lens.js";
