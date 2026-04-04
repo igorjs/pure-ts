@@ -96,6 +96,29 @@ export type Middleware = (
   next: (req: Request) => Task<Response, ServerError>,
 ) => (req: Request) => Task<Response, ServerError>;
 
+/**
+ * Typed middleware that can extend the request context.
+ *
+ * Unlike plain Middleware, TypedMiddleware receives the accumulated
+ * context and can add new fields. Each `.middleware()` call on the
+ * builder accumulates the Ext type into the builder's Ctx parameter.
+ *
+ * @example
+ * ```ts
+ * const auth: TypedMiddleware<{}, { user: User }> = (next) => (req, ctx) =>
+ *   Task(async () => {
+ *     const user = await authenticate(req);
+ *     return next(req, { ...ctx, user }).run();
+ *   });
+ * ```
+ */
+export type TypedMiddleware<
+  In extends Record<string, unknown>,
+  Out extends Record<string, unknown>,
+> = (
+  next: (req: Request, ctx: In & Out) => Task<Response, ServerError>,
+) => (req: Request, ctx: In) => Task<Response, ServerError>;
+
 /** Adapter interface for plugging in different HTTP server runtimes. */
 export interface ServerAdapter {
   readonly serve: (
@@ -400,9 +423,19 @@ const defaultErrorHandler = (error: ServerError, _req: Request): Response => {
  * Each method returns a new frozen builder. Route compilation into a trie
  * is deferred until the first call to `.fetch`, `.handle`, or `.listen()`.
  */
-export interface ServerBuilder<Ctx = Record<string, unknown>> {
+export interface ServerBuilder<Ctx extends Record<string, unknown> = Record<string, unknown>> {
   /** Register one or more middleware functions. */
   use(...middlewares: readonly Middleware[]): ServerBuilder<Ctx>;
+
+  /**
+   * Register typed middleware that can extend the context.
+   *
+   * Unlike `.use()`, typed middleware receives and can extend the
+   * accumulated context type. Each call adds to Ctx.
+   */
+  middleware<Ext extends Record<string, unknown>>(
+    mw: TypedMiddleware<Ctx, Ext>,
+  ): ServerBuilder<Ctx & Ext>;
 
   /**
    * Derive additional typed context from the request.
@@ -473,6 +506,15 @@ type Deriver = (
 ) => Task<Record<string, unknown>, ServerError>;
 
 /**
+ * Erased typed middleware stored internally.
+ * The context types are erased to Record<string, unknown> for storage;
+ * type safety is enforced at the public API boundary.
+ */
+type ErasedTypedMiddleware = (
+  next: (req: Request, ctx: Record<string, unknown>) => Task<Response, ServerError>,
+) => (req: Request, ctx: Record<string, unknown>) => Task<Response, ServerError>;
+
+/**
  * Internal state carried by each builder snapshot.
  * The builder is closure-based: each method returns a new frozen object
  * that shares the same immutable config arrays (COW on modification).
@@ -481,6 +523,7 @@ interface BuilderState {
   readonly serverName: string;
   readonly routes: readonly RouteDefinition[];
   readonly middlewares: readonly Middleware[];
+  readonly typedMiddlewares: readonly ErasedTypedMiddleware[];
   readonly derivers: readonly Deriver[];
   readonly errorHandler: (error: ServerError, request: Request) => Response;
 }
@@ -709,7 +752,24 @@ const createBuilder = <Ctx extends Record<string, unknown>>(
 
       const ctx: Context = { req, url, params };
       const fullCtx = { ...ctx, ...derivedResult.value };
-      return executeHandler(handler, fullCtx).run();
+
+      // Apply typed middlewares around the handler execution
+      if (state.typedMiddlewares.length === 0) {
+        return executeHandler(handler, fullCtx).run();
+      }
+
+      // Build the innermost handler that executes the route handler
+      let innerFn = (_r: Request, c: Record<string, unknown>): Task<Response, ServerError> =>
+        executeHandler(handler, c as unknown as Context);
+
+      // Compose typed middlewares right-to-left (first registered = outermost)
+      for (let i = state.typedMiddlewares.length - 1; i >= 0; i--) {
+        const mw = state.typedMiddlewares[i]!;
+        const next = innerFn;
+        innerFn = mw(next);
+      }
+
+      return innerFn(req, fullCtx).run();
     });
   };
 
@@ -730,6 +790,16 @@ const createBuilder = <Ctx extends Record<string, unknown>>(
       return createBuilder<Ctx>({
         ...state,
         middlewares: [...state.middlewares, ...middlewares],
+      });
+    },
+
+    middleware<Ext extends Record<string, unknown>>(
+      mw: TypedMiddleware<Ctx, Ext>,
+    ): ServerBuilder<Ctx & Ext> {
+      const erased: ErasedTypedMiddleware = mw as ErasedTypedMiddleware;
+      return createBuilder<Ctx & Ext>({
+        ...state,
+        typedMiddlewares: [...state.typedMiddlewares, erased],
       });
     },
 
@@ -908,6 +978,7 @@ export const Server = (name: string): ServerBuilder => {
     serverName: name,
     routes: [],
     middlewares: [],
+    typedMiddlewares: [],
     derivers: [],
     errorHandler: defaultErrorHandler,
   });

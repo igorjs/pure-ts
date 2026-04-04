@@ -79,6 +79,7 @@ export {
   type ListenOptions,
   MethodNotAllowed,
   type Middleware,
+  type TypedMiddleware,
   type Params,
   type RouteDefinition,
   RouteNotFound,
