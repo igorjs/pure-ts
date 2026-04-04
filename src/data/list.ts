@@ -18,8 +18,10 @@
  * and cached in a separate WeakMap.
  */
 
+import type { Eq } from "../core/eq.js";
 import type { Option } from "../core/option.js";
 import { None, Some } from "../core/option.js";
+import type { Ord } from "../core/ord.js";
 import { type DeepReadonly, deepEqual, isObjectLike } from "./internals.js";
 import { createRecord } from "./record.js";
 
@@ -63,6 +65,12 @@ export interface ListMethods<T> {
   slice(start?: number, end?: number): ImmutableList<T>;
   /** Return a sorted copy using `comparator`. */
   sortBy(comparator: (a: T, b: T) => number): ImmutableList<T>;
+  /** Return a sorted copy using an Ord instance. */
+  sortByOrd(ord: Ord<T>): ImmutableList<T>;
+  /** Deduplicate elements using an Eq instance. Preserves first occurrence. */
+  uniqBy(eq: Eq<T>): ImmutableList<T>;
+  /** Group elements by a key function. Returns a record of lists. */
+  groupBy<K extends string>(fn: (value: T) => K): Readonly<Record<K, ImmutableList<T>>>;
   /** Map each element to an array and flatten. */
   flatMap<U>(fn: (value: T, index: number) => readonly U[]): ImmutableList<U>;
   /** Structural deep equality. */
@@ -123,6 +131,9 @@ const LIST_METHOD_KEYS = new Set([
   "concat",
   "slice",
   "sortBy",
+  "sortByOrd",
+  "uniqBy",
+  "groupBy",
   "flatMap",
   "equals",
   "toMutable",
@@ -204,6 +215,40 @@ const buildListMethods = <T>(raw: readonly T[]): ListMethods<T> => ({
   },
   sortBy(comparator: (a: T, b: T) => number) {
     return createListProxy((raw.slice() as T[]).sort(comparator));
+  },
+  sortByOrd(ord: Ord<T>) {
+    return createListProxy((raw.slice() as T[]).sort(ord.compare));
+  },
+  uniqBy(eq: Eq<T>) {
+    const result: T[] = [];
+    for (const item of raw) {
+      let duplicate = false;
+      for (const kept of result) {
+        if (eq.equals(item, kept)) {
+          duplicate = true;
+          break;
+        }
+      }
+      if (!duplicate) result.push(item);
+    }
+    return createListProxy(result);
+  },
+  groupBy<K extends string>(fn: (value: T) => K): Readonly<Record<K, ImmutableList<T>>> {
+    const groups: Record<string, T[]> = {};
+    for (const item of raw) {
+      const key = fn(item);
+      let group = groups[key];
+      if (group === undefined) {
+        group = [];
+        groups[key] = group;
+      }
+      group.push(item);
+    }
+    const result: Record<string, ImmutableList<T>> = {};
+    for (const key of Object.keys(groups)) {
+      result[key] = createListProxy(groups[key]!);
+    }
+    return result as Readonly<Record<K, ImmutableList<T>>>;
   },
   flatMap<U>(fn: (value: T, index: number) => readonly U[]): ImmutableList<U> {
     return createListProxy(raw.flatMap(fn));
