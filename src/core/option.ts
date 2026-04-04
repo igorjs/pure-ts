@@ -117,7 +117,7 @@ export class SomeImpl<T> implements OptionMethods<T> {
   }
   /** Combine two `Some` values into a tuple, short-circuiting on `None`. */
   zip<U>(other: Option<U>): Option<[T, U]> {
-    return other.isSome ? new SomeImpl([this.value, (other as SomeImpl<U>).value]) : None;
+    return other.isSome ? new SomeImpl([this.value, other.value]) : None;
   }
   /**
    * Applicative apply: apply a wrapped function to this value.
@@ -126,9 +126,7 @@ export class SomeImpl<T> implements OptionMethods<T> {
    * If `fnOption` is `None`, returns `None`.
    */
   ap<U>(fnOption: Option<(value: T) => U>): Option<U> {
-    return fnOption.isSome
-      ? new SomeImpl((fnOption as SomeImpl<(value: T) => U>).value(this.value))
-      : None;
+    return fnOption.isSome ? new SomeImpl(fnOption.value(this.value)) : None;
   }
   /** Return this `Some`, ignoring the alternative. */
   or(_other: Option<T>): Option<T> {
@@ -264,7 +262,7 @@ export const collectOptions = <T>(options: readonly Option<T>[]): Option<readonl
   const values: T[] = [];
   for (const o of options) {
     if (o.isNone) return None;
-    values.push((o as SomeImpl<T>).value);
+    values.push(o.value);
   }
   return Some(values);
 };
@@ -295,7 +293,7 @@ const traverseOptions = <A, T>(
   for (const item of items) {
     const o = fn(item);
     if (o.isNone) return None;
-    values.push((o as SomeImpl<T>).value);
+    values.push(o.value);
   }
   return Some(values);
 };

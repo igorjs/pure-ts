@@ -51,11 +51,14 @@ class LazyImpl<T> implements Disposable {
   get value(): T {
     if (this._disposed) throw new TypeError("Cannot access disposed Lazy");
     if (!this._evaluated) {
-      this._value = this._thunk!();
+      if (this._thunk === null) throw new TypeError("Lazy thunk released before evaluation");
+      this._value = this._thunk();
       this._thunk = null; // Release closure for GC
       this._evaluated = true;
     }
-    return this._value!;
+    // After evaluation, _value is always set. The undefined case only
+    // occurs if T itself is undefined, which is a valid value.
+    return this._value as T;
   }
 
   /** Whether the lazy value has been computed. */

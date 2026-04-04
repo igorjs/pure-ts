@@ -17,7 +17,7 @@
  */
 
 import type { Result } from "../core/result.js";
-import { collectResults, Err, type ErrImpl, Ok } from "../core/result.js";
+import { castErr, castOk, collectResults, Err, Ok } from "../core/result.js";
 
 /**
  * Composable async computation that produces `Result<T, E>`.
@@ -54,7 +54,7 @@ class TaskImpl<T, E> {
   map<U>(fn: (value: T) => U): Task<U, E> {
     return new TaskImpl(async () => {
       const r = await this._run();
-      return r.isOk ? Ok(fn(r.value)) : (r as unknown as Result<U, E>);
+      return r.isOk ? Ok(fn(r.value)) : castErr(r);
     });
   }
 
@@ -62,7 +62,7 @@ class TaskImpl<T, E> {
   mapErr<F>(fn: (error: E) => F): Task<T, F> {
     return new TaskImpl(async () => {
       const r = await this._run();
-      return r.isErr ? Err(fn((r as ErrImpl<T, E>).error)) : (r as unknown as Result<T, F>);
+      return r.isErr ? Err(fn(r.error)) : castOk(r);
     });
   }
 
@@ -70,7 +70,7 @@ class TaskImpl<T, E> {
   flatMap<U>(fn: (value: T) => Task<U, E>): Task<U, E> {
     return new TaskImpl(async () => {
       const r = await this._run();
-      if (r.isErr) return r as unknown as Result<U, E>;
+      if (r.isErr) return castErr(r);
       return fn(r.value).run();
     });
   }
@@ -88,7 +88,7 @@ class TaskImpl<T, E> {
   tapErr(fn: (error: E) => void): Task<T, E> {
     return new TaskImpl(async () => {
       const r = await this._run();
-      if (r.isErr) fn((r as ErrImpl<T, E>).error);
+      if (r.isErr) fn(r.error);
       return r;
     });
   }
@@ -111,8 +111,8 @@ class TaskImpl<T, E> {
   zip<U>(other: Task<U, E>): Task<[T, U], E> {
     return new TaskImpl(async () => {
       const [a, b] = await Promise.all([this._run(), other._run()]);
-      if (a.isErr) return a as unknown as Result<[T, U], E>;
-      if (b.isErr) return b as unknown as Result<[T, U], E>;
+      if (a.isErr) return castErr(a);
+      if (b.isErr) return castErr(b);
       return Ok([a.value, b.value] as [T, U]);
     });
   }
@@ -134,7 +134,8 @@ class TaskImpl<T, E> {
     let thunk: (() => Promise<Result<T, E>>) | null = this._run;
     return new TaskImpl(() => {
       if (cached !== null) return cached;
-      cached = thunk!();
+      if (thunk === null) throw new TypeError("Task.memoize: thunk released unexpectedly");
+      cached = thunk();
       thunk = null;
       return cached;
     });
@@ -333,8 +334,8 @@ export const Task: {
   ap: <A, B, E>(fnTask: Task<(a: A) => B, E>, argTask: Task<A, E>): Task<B, E> =>
     new TaskImpl(async () => {
       const [fnResult, argResult] = await Promise.all([fnTask.run(), argTask.run()]);
-      if (fnResult.isErr) return fnResult as unknown as Result<B, E>;
-      if (argResult.isErr) return argResult as unknown as Result<B, E>;
+      if (fnResult.isErr) return castErr(fnResult);
+      if (argResult.isErr) return castErr(argResult);
       return Ok(fnResult.value(argResult.value));
     }),
 

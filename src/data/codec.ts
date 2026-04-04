@@ -16,7 +16,7 @@
  */
 
 import type { Result } from "../core/result.js";
-import { Err, type ErrImpl, Ok } from "../core/result.js";
+import { castErr, Err, Ok } from "../core/result.js";
 import type { SchemaError, SchemaType } from "./schema.js";
 
 // ── Codec interface ─────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ const toSchema = <O>(decode: (input: unknown) => Result<O, SchemaError>): Schema
   transform: <U>(fn: (v: O) => U) =>
     toSchema<U>(input => {
       const r = decode(input);
-      if (r.isErr) return r as unknown as Result<U, SchemaError>;
+      if (r.isErr) return castErr(r);
       return Ok(fn(r.value));
     }),
   optional: () =>
@@ -143,7 +143,7 @@ const objectCodec = <T extends CodecShape>(shape: T): CodecType<unknown, Decoded
       for (const key of keys) {
         const codec = shape[key]!;
         const r = codec.decode((input as Record<string, unknown>)[key]);
-        if (r.isErr) return Err(prependPath((r as ErrImpl<unknown, SchemaError>).error, key));
+        if (r.isErr) return Err(prependPath(r.error, key));
         result[key] = r.value;
       }
       return Ok(result) as unknown as Result<DecodedShape<T>, SchemaError>;
@@ -166,7 +166,7 @@ const arrayCodec = <T>(element: CodecType<unknown, T>): CodecType<unknown, reado
       const results: T[] = [];
       for (let i = 0; i < input.length; i++) {
         const r = element.decode(input[i]);
-        if (r.isErr) return Err(prependPath((r as ErrImpl<unknown, SchemaError>).error, String(i)));
+        if (r.isErr) return Err(prependPath(r.error, String(i)));
         results.push(r.value);
       }
       return Ok(results as readonly T[]);

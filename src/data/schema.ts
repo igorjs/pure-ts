@@ -19,7 +19,7 @@
  */
 
 import type { Result } from "../core/result.js";
-import { Err, type ErrImpl, Ok } from "../core/result.js";
+import { castErr, Err, Ok } from "../core/result.js";
 
 /**
  * Describes a validation error at a specific path.
@@ -99,7 +99,7 @@ const createSchema = <T>(rawParse: (input: unknown) => Result<T, SchemaError>): 
   transform: <U>(fn: (v: T) => U) =>
     createSchema<U>(input => {
       const r = rawParse(input);
-      if (r.isErr) return r as unknown as Result<U, SchemaError>;
+      if (r.isErr) return castErr(r);
       return Ok(fn(r.value));
     }),
   optional: () =>
@@ -138,7 +138,7 @@ const objectSchema = <T extends Record<string, SchemaType<any>>>(
     for (const key of keys) {
       const fieldSchema = (shape as Record<string, SchemaType<any>>)[key]!;
       const r = fieldSchema.parse((input as Record<string, unknown>)[key]);
-      if (r.isErr) return Err(prependPath((r as ErrImpl<unknown, SchemaError>).error, key));
+      if (r.isErr) return Err(prependPath(r.error, key));
       result[key] = r.value;
     }
     return Ok(result) as unknown as Result<
@@ -153,7 +153,7 @@ const arraySchema = <T>(element: SchemaType<T>): SchemaType<readonly T[]> =>
     const results: T[] = [];
     for (let i = 0; i < input.length; i++) {
       const r = element.parse(input[i]);
-      if (r.isErr) return Err(prependPath((r as ErrImpl<unknown, SchemaError>).error, String(i)));
+      if (r.isErr) return Err(prependPath(r.error, String(i)));
       results.push(r.value);
     }
     return Ok(results as readonly T[]);
@@ -170,7 +170,7 @@ const tupleSchema = <T extends readonly SchemaType<any>[]>(
     const results: unknown[] = [];
     for (let i = 0; i < schemas.length; i++) {
       const r = schemas[i]!.parse(input[i]);
-      if (r.isErr) return Err(prependPath((r as ErrImpl<unknown, SchemaError>).error, String(i)));
+      if (r.isErr) return Err(prependPath(r.error, String(i)));
       results.push(r.value);
     }
     return Ok(results) as unknown as Result<
@@ -188,7 +188,7 @@ const recordValuesSchema = <V>(value: SchemaType<V>): SchemaType<Readonly<Record
     const keys = Object.keys(input);
     for (const key of keys) {
       const r = value.parse((input as Record<string, unknown>)[key]);
-      if (r.isErr) return Err(prependPath((r as ErrImpl<unknown, SchemaError>).error, key));
+      if (r.isErr) return Err(prependPath(r.error, key));
       result[key] = r.value;
     }
     return Ok(result as Readonly<Record<string, V>>);
@@ -327,9 +327,9 @@ export const Schema = {
   intersection: <A, B>(a: SchemaType<A>, b: SchemaType<B>): SchemaType<A & B> =>
     createSchema<A & B>(input => {
       const ra = a.parse(input);
-      if (ra.isErr) return ra as unknown as Result<A & B, SchemaError>;
+      if (ra.isErr) return castErr(ra);
       const rb = b.parse(input);
-      if (rb.isErr) return rb as unknown as Result<A & B, SchemaError>;
+      if (rb.isErr) return castErr(rb);
       return Ok({ ...ra.value, ...rb.value } as A & B);
     }),
 } as const;

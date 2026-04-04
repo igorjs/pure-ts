@@ -34,9 +34,12 @@ export type Duration = Type<"Duration", number>;
 
 /**
  * Brand a raw number as Duration.
- * This is the only place the nominal cast happens.
+ * One of only two places where a nominal cast occurs.
  */
 const brand = (ms: number): Duration => ms as unknown as Duration;
+
+/** Extract the raw millisecond value from a Duration. */
+const unbrand = (d: Duration): number => unbrand(d);
 
 // ── Factories ───────────────────────────────────────────────────────────────
 
@@ -48,40 +51,35 @@ const days = (d: number): Duration => brand(d * 86_400_000);
 
 // ── Conversions ─────────────────────────────────────────────────────────────
 
-const toMilliseconds = (d: Duration): number => d as unknown as number;
-const toSeconds = (d: Duration): number => (d as unknown as number) / 1_000;
-const toMinutes = (d: Duration): number => (d as unknown as number) / 60_000;
-const toHours = (d: Duration): number => (d as unknown as number) / 3_600_000;
+const toMilliseconds = (d: Duration): number => unbrand(d);
+const toSeconds = (d: Duration): number => unbrand(d) / 1_000;
+const toMinutes = (d: Duration): number => unbrand(d) / 60_000;
+const toHours = (d: Duration): number => unbrand(d) / 3_600_000;
 
 // ── Arithmetic ──────────────────────────────────────────────────────────────
 
-const add = (a: Duration, b: Duration): Duration =>
-  brand((a as unknown as number) + (b as unknown as number));
+const add = (a: Duration, b: Duration): Duration => brand(unbrand(a) + unbrand(b));
 
-const subtract = (a: Duration, b: Duration): Duration =>
-  brand((a as unknown as number) - (b as unknown as number));
+const subtract = (a: Duration, b: Duration): Duration => brand(unbrand(a) - unbrand(b));
 
-const multiply = (d: Duration, factor: number): Duration =>
-  brand((d as unknown as number) * factor);
+const multiply = (d: Duration, factor: number): Duration => brand(unbrand(d) * factor);
 
 // ── Predicates ──────────────────────────────────────────────────────────────
 
-const isZero = (d: Duration): boolean => (d as unknown as number) === 0;
-const isPositive = (d: Duration): boolean => (d as unknown as number) > 0;
+const isZero = (d: Duration): boolean => unbrand(d) === 0;
+const isPositive = (d: Duration): boolean => unbrand(d) > 0;
 
 // ── Typeclass instances ─────────────────────────────────────────────────────
 
 const durationEq: Eq<Duration> = Object.freeze({
-  equals: (a: Duration, b: Duration): boolean =>
-    (a as unknown as number) === (b as unknown as number),
+  equals: (a: Duration, b: Duration): boolean => unbrand(a) === unbrand(b),
 });
 
 const sign = (n: number): -1 | 0 | 1 => (n < 0 ? -1 : n > 0 ? 1 : 0);
 
 const durationOrd: Ord<Duration> = Object.freeze({
   equals: durationEq.equals,
-  compare: (a: Duration, b: Duration): -1 | 0 | 1 =>
-    sign((a as unknown as number) - (b as unknown as number)),
+  compare: (a: Duration, b: Duration): -1 | 0 | 1 => sign(unbrand(a) - unbrand(b)),
 });
 
 // ── Formatting ──────────────────────────────────────────────────────────────
@@ -91,7 +89,7 @@ const durationOrd: Ord<Duration> = Object.freeze({
  * Uses the largest appropriate unit: "2h 30m 15s", "500ms", "0ms".
  */
 const format = (d: Duration): string => {
-  const ms = d as unknown as number;
+  const ms = unbrand(d);
   const absMs = Math.abs(ms);
   const prefix = ms < 0 ? "-" : "";
 

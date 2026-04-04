@@ -87,7 +87,7 @@ export class OkImpl<T, E> implements ResultMethods<T, E> {
   }
   /** No-op on `Ok`: the error channel is empty. */
   mapErr<F>(_fn: (error: E) => F): Result<T, F> {
-    return this as unknown as Result<T, F>;
+    return castOk(this);
   }
   /** Chain into a dependent computation that may fail. */
   flatMap<U>(fn: (value: T) => Result<U, E>): Result<U, E> {
@@ -129,9 +129,7 @@ export class OkImpl<T, E> implements ResultMethods<T, E> {
 
   /** Combine two `Ok` values into a tuple, short-circuiting on `Err`. */
   zip<U>(other: Result<U, E>): Result<[T, U], E> {
-    return other.isOk
-      ? new OkImpl([this.value, (other as OkImpl<U, E>).value])
-      : (other as unknown as Result<[T, U], E>);
+    return other.isOk ? new OkImpl([this.value, other.value]) : castErr(other);
   }
 
   /**
@@ -141,9 +139,7 @@ export class OkImpl<T, E> implements ResultMethods<T, E> {
    * If `fnResult` is `Err`, propagates the error.
    */
   ap<U>(fnResult: Result<(value: T) => U, E>): Result<U, E> {
-    return fnResult.isOk
-      ? new OkImpl((fnResult as OkImpl<(value: T) => U, E>).value(this.value))
-      : (fnResult as unknown as Result<U, E>);
+    return fnResult.isOk ? new OkImpl(fnResult.value(this.value)) : castErr(fnResult);
   }
 
   /** Serialise as `{ tag: 'Ok', value: T }`. */
@@ -176,7 +172,7 @@ export class ErrImpl<T, E> implements ResultMethods<T, E> {
 
   /** No-op on `Err`: the value channel is empty. */
   map<U>(_fn: (value: T) => U): Result<U, E> {
-    return this as unknown as Result<U, E>;
+    return castErr(this);
   }
   /** Apply `fn` to the error, returning a new `Err`. */
   mapErr<F>(fn: (error: E) => F): Result<T, F> {
@@ -184,7 +180,7 @@ export class ErrImpl<T, E> implements ResultMethods<T, E> {
   }
   /** Short-circuit: propagate this `Err` without calling `fn`. */
   flatMap<U>(_fn: (value: T) => Result<U, E>): Result<U, E> {
-    return this as unknown as Result<U, E>;
+    return castErr(this);
   }
   /** No-op on `Err`: no value to tap. */
   tap(_fn: (value: T) => void): Result<T, E> {
@@ -221,11 +217,11 @@ export class ErrImpl<T, E> implements ResultMethods<T, E> {
   }
   /** Short-circuit: propagate this `Err`. */
   zip<U>(_other: Result<U, E>): Result<[T, U], E> {
-    return this as unknown as Result<[T, U], E>;
+    return castErr(this);
   }
   /** Short-circuit: propagate this `Err`. */
   ap<U>(_fnResult: Result<(value: T) => U, E>): Result<U, E> {
-    return this as unknown as Result<U, E>;
+    return castErr(this);
   }
   /** Serialise as `{ tag: 'Err', error: E }`. */
   toJSON(): { tag: "Err"; error: E } {
@@ -235,6 +231,27 @@ export class ErrImpl<T, E> implements ResultMethods<T, E> {
     return `Err(${String(this.error)})`;
   }
 }
+
+// ── Variance helpers ─────────────────────────────────────────────────────────
+//
+// Result<T, E> is invariant in both T and E because OkImpl and ErrImpl carry
+// both type parameters in their method signatures. When propagating an Err
+// through a map/flatMap that changes T, or an Ok through a mapErr that changes
+// E, we need to widen the unused parameter.
+//
+// These two helpers centralise the cast so it appears exactly once, with a
+// documented rationale, instead of being scattered across every operator.
+//
+// Safety: Err carries no value of type T; Ok carries no error of type E.
+// Widening the unused parameter is a type-level operation only.
+// Result<never, E> is assignable to Result<U, E> via bivariant method compat.
+
+/** Widen the value-type of an Err result. Returns Result<never, E>. */
+export const castErr = <T, E>(r: ErrImpl<T, E>): Result<never, E> =>
+  r as unknown as Result<never, E>;
+
+/** Widen the error-type of an Ok result. Returns Result<T, never>. */
+export const castOk = <T, E>(r: OkImpl<T, E>): Result<T, never> => r as unknown as Result<T, never>;
 
 /**
  * Create a successful {@link Result} wrapping `value`.
@@ -273,8 +290,8 @@ export const Err = <E>(error: E): Result<never, E> => new ErrImpl(error);
 export const collectResults = <T, E>(results: readonly Result<T, E>[]): Result<readonly T[], E> => {
   const values: T[] = [];
   for (const r of results) {
-    if (r.isErr) return r as unknown as Result<readonly T[], E>;
-    values.push((r as OkImpl<T, E>).value);
+    if (r.isErr) return castErr(r);
+    values.push(r.value);
   }
   return Ok(values);
 };
@@ -332,8 +349,8 @@ const traverseResults = <A, T, E>(
   const values: T[] = [];
   for (const item of items) {
     const r = fn(item);
-    if (r.isErr) return r as unknown as Result<readonly T[], E>;
-    values.push((r as OkImpl<T, E>).value);
+    if (r.isErr) return castErr(r);
+    values.push(r.value);
   }
   return Ok(values);
 };

@@ -18,7 +18,7 @@
 import type { Option } from "../core/option.js";
 import { None, Some } from "../core/option.js";
 import type { Result } from "../core/result.js";
-import { Err, Ok } from "../core/result.js";
+import { castErr, castOk, Err, Ok } from "../core/result.js";
 import type { Duration } from "../types/duration.js";
 import { Duration as D } from "../types/duration.js";
 
@@ -84,7 +84,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
     createStream(
       gen<U, E>(async function* () {
         for await (const r of source()) {
-          yield r.isOk ? Ok(fn(r.value)) : (r as unknown as Result<U, E>);
+          yield r.isOk ? Ok(fn(r.value)) : castErr(r);
         }
       }),
     ),
@@ -94,7 +94,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
       gen<U, E>(async function* () {
         for await (const r of source()) {
           if (r.isErr) {
-            yield r as unknown as Result<U, E>;
+            yield castErr(r);
             continue;
           }
           for await (const inner of fn(r.value).run()) {
@@ -163,7 +163,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
         let buffer: T[] = [];
         for await (const r of source()) {
           if (r.isErr) {
-            yield r as unknown as Result<readonly T[], E>;
+            yield castErr(r);
             continue;
           }
           buffer.push(r.value);
@@ -183,9 +183,9 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
       gen<T, F>(async function* () {
         for await (const r of source()) {
           if (r.isErr) {
-            yield Err(fn((r as unknown as { readonly error: E }).error));
+            yield Err(fn(r.error));
           } else {
-            yield r as unknown as Result<T, F>;
+            yield castOk(r);
           }
         }
       }),
@@ -205,7 +205,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
     mkTask(async () => {
       const values: T[] = [];
       for await (const r of source()) {
-        if (r.isErr) return r as unknown as Result<readonly T[], E>;
+        if (r.isErr) return castErr(r);
         values.push(r.value);
       }
       return Ok(values as readonly T[]);
@@ -214,7 +214,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
   forEach: (fn: (value: T) => void): TaskLike<void, E> =>
     mkTask(async () => {
       for await (const r of source()) {
-        if (r.isErr) return r as unknown as Result<void, E>;
+        if (r.isErr) return castErr(r);
         fn(r.value);
       }
       return Ok(undefined);
@@ -224,7 +224,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
     mkTask(async () => {
       let acc = init;
       for await (const r of source()) {
-        if (r.isErr) return r as unknown as Result<U, E>;
+        if (r.isErr) return castErr(r);
         acc = fn(acc, r.value);
       }
       return Ok(acc);
@@ -233,7 +233,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
   first: (): TaskLike<Option<T>, E> =>
     mkTask(async () => {
       for await (const r of source()) {
-        if (r.isErr) return r as unknown as Result<Option<T>, E>;
+        if (r.isErr) return castErr(r);
         return Ok(Some(r.value));
       }
       return Ok(None as Option<T>);
@@ -258,11 +258,11 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
           const rA = a.value;
           const rB = b.value;
           if (rA.isErr) {
-            yield rA as unknown as Result<[T, U], E>;
+            yield castErr(rA);
             continue;
           }
           if (rB.isErr) {
-            yield rB as unknown as Result<[T, U], E>;
+            yield castErr(rB);
             continue;
           }
           yield Ok([rA.value, rB.value] as [T, U]);
@@ -276,7 +276,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
         const buffer: T[] = [];
         for await (const r of source()) {
           if (r.isErr) {
-            yield r as unknown as Result<readonly T[], E>;
+            yield castErr(r);
             continue;
           }
           buffer.push(r.value);
@@ -294,7 +294,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
     mkTask(async () => {
       const groups: Record<string, T[]> = {};
       for await (const r of source()) {
-        if (r.isErr) return r as unknown as Result<Readonly<Record<K, readonly T[]>>, E>;
+        if (r.isErr) return castErr(r);
         const key = fn(r.value);
         let group = groups[key];
         if (group === undefined) {
@@ -312,7 +312,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
         let acc = init;
         for await (const r of source()) {
           if (r.isErr) {
-            yield r as unknown as Result<U, E>;
+            yield castErr(r);
             continue;
           }
           acc = fn(acc, r.value);
