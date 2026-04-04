@@ -230,7 +230,9 @@ export const createDraft = <T extends object>(
 ): T => {
   const target = Object.isFrozen(base)
     ? Array.isArray(base)
-      ? ([...base] as unknown as T)
+      ? // Why: spreading a frozen array produces unknown[]. T is the original
+        // array type. Safe because spread copies all elements preserving shape.
+        ([...base] as unknown as T)
       : { ...base }
     : base;
   return new Proxy(target as T, {

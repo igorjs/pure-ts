@@ -760,6 +760,9 @@ const createBuilder = <Ctx extends Record<string, unknown>>(
 
       // Build the innermost handler that executes the route handler
       let innerFn = (_r: Request, c: Record<string, unknown>): Task<Response, ServerError> =>
+        // Why: c is Record<string, unknown> (type-erased for middleware storage),
+        // but at runtime it is fullCtx which contains req, url, params (Context).
+        // The erasure happens at the TypedMiddleware storage boundary.
         executeHandler(handler, c as unknown as Context);
 
       // Compose typed middlewares right-to-left (first registered = outermost)

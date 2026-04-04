@@ -73,6 +73,7 @@ type DenoServeFn = (
  */
 export const denoAdapter: ServerAdapter = {
   async serve(handler, options) {
+    // Why: globalThis doesn't declare Deno. Structural typing avoids @deno/types dependency.
     const denoGlobal = globalThis as unknown as {
       Deno?: { serve?: DenoServeFn };
     };

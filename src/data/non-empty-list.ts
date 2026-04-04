@@ -180,6 +180,8 @@ const createNonEmptyList = <T>(raw: readonly T[]): NonEmptyList<T> => {
       return createListProxy(raw.slice(start, end));
     },
     equals(other: NonEmptyList<T>): boolean {
+      // Why: NonEmptyList wraps ImmutableList. The inner equals() expects
+      // ImmutableList, but other is NonEmptyList (a supertype via Proxy).
       return inner.equals(other as unknown as ImmutableList<T>);
     },
     toMutable(): T[] {
@@ -202,10 +204,16 @@ const createNonEmptyList = <T>(raw: readonly T[]): NonEmptyList<T> => {
   return new Proxy(inner, {
     get(target, prop, receiver) {
       if (typeof prop === "string" && prop in methods) {
+        // Why: Proxy get trap receives string props. methods is a typed interface,
+        // but we already checked prop is a key via `in`. TS can't narrow an
+        // interface to Record<string, unknown> without this cast.
         return (methods as unknown as Record<string, unknown>)[prop];
       }
       return Reflect.get(target, prop, receiver);
     },
+    // Why: The Proxy wraps ImmutableList with overridden methods.
+    // The resulting object satisfies NonEmptyList<T> structurally,
+    // but TS can't prove Proxy<ImmutableList> equals NonEmptyList.
   }) as unknown as NonEmptyList<T>;
 };
 

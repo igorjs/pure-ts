@@ -141,6 +141,9 @@ const objectSchema = <T extends Record<string, SchemaType<any>>>(
       if (r.isErr) return Err(prependPath(r.error, key));
       result[key] = r.value;
     }
+    // Why: result is Record<string, unknown> built from validated fields.
+    // TS can't prove the dynamic keys match the mapped type { [K in keyof T]: ... }.
+    // Safe because we iterated Object.keys(shape) and validated each field.
     return Ok(result) as unknown as Result<
       { [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never },
       SchemaError
@@ -173,6 +176,9 @@ const tupleSchema = <T extends readonly SchemaType<any>[]>(
       if (r.isErr) return Err(prependPath(r.error, String(i)));
       results.push(r.value);
     }
+    // Why: results is unknown[] built from positional validation.
+    // TS can't prove the dynamic array matches the mapped tuple type.
+    // Safe because we validated each position against its schema.
     return Ok(results) as unknown as Result<
       { readonly [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never },
       SchemaError
@@ -204,6 +210,9 @@ const unionSchema = <T extends readonly SchemaType<any>[]>(
     for (const s of schemas) {
       const r = s.parse(input);
       if (r.isOk) {
+        // Why: r is Result<any, SchemaError> from one of the union schemas.
+        // TS can't prove which union member matched, so it can't narrow to
+        // the inferred union type. Safe because parse succeeded on one branch.
         return r as unknown as Result<
           T[number] extends SchemaType<infer U> ? U : never,
           SchemaError

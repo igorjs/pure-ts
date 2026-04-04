@@ -100,6 +100,8 @@ const createCodec = <I, O>(
       createCodec(
         (input: I) => {
           const r = decode(input);
+          // Why: r is Result<O, SchemaError>, need Result<O2, SchemaError>.
+          // Error type unchanged; only the Ok payload differs in the pipeline.
           if (r.isErr) return r as unknown as Result<O2, SchemaError>;
           return other.decode(r.value);
         },
@@ -146,6 +148,9 @@ const objectCodec = <T extends CodecShape>(shape: T): CodecType<unknown, Decoded
         if (r.isErr) return Err(prependPath(r.error, key));
         result[key] = r.value;
       }
+      // Why: result is Record<string, unknown> built from validated codec fields.
+      // TS can't prove dynamic keys match the mapped DecodedShape<T>.
+      // Safe because we decoded each field via its codec.
       return Ok(result) as unknown as Result<DecodedShape<T>, SchemaError>;
     },
     (output: DecodedShape<T>) => {

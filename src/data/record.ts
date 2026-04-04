@@ -226,6 +226,9 @@ const buildShapeClass = (keys: readonly string[]): (new (raw: object) => any) =>
   // ── Constructor ──
   const cls = function RecordInstance(this: any, raw: object) {
     this._raw = raw;
+    // Why: RecordInstance is a plain function used as a constructor.
+    // TS can't type a function-as-constructor without class syntax.
+    // The prototype is set manually below for class-per-shape optimisation.
   } as unknown as new (
     raw: object,
   ) => any;

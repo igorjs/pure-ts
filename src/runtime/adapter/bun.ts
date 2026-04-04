@@ -71,6 +71,7 @@ type BunServeFn = (options: BunServeOptions) => BunServer;
  */
 export const bunAdapter: ServerAdapter = {
   async serve(handler, options) {
+    // Why: globalThis doesn't declare Bun. Structural typing avoids @types/bun dependency.
     const bunGlobal = globalThis as unknown as {
       Bun?: { serve?: BunServeFn };
     };

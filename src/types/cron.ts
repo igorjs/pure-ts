@@ -120,6 +120,8 @@ const parseCron = (expr: string): Result<readonly CronField[], SchemaError> => {
   for (let i = 0; i < 5; i++) {
     const [min, max] = FIELD_RANGES[i]!;
     const result = parseField(parts[i]!, min, max, FIELD_NAMES[i]!);
+    // Why: Result<CronField, SchemaError> needs to become Result<CronField[], SchemaError>.
+    // The error type is unchanged; only the Ok payload type differs.
     if (result.isErr) return result as unknown as Result<never, SchemaError>;
     fields.push(result.value);
   }
@@ -132,6 +134,7 @@ const parseCron = (expr: string): Result<readonly CronField[], SchemaError> => {
 const PARSED_CACHE = new Map<string, readonly CronField[]>();
 
 const getCachedFields = (expr: CronExpression): readonly CronField[] => {
+  // Why: CronExpression is a branded string. Unbrand to use as Map key.
   const key = expr as unknown as string;
   let fields = PARSED_CACHE.get(key);
   if (fields === undefined) {
@@ -251,9 +254,12 @@ export const Cron: {
 } = {
   parse: (expr: string): Result<CronExpression, SchemaError> => {
     const result = parseCron(expr);
+    // Why: parseCron returns Result<CronField[], SchemaError>.
+    // Widen to Result<never, SchemaError> so it fits Result<CronExpression, SchemaError>.
     if (result.isErr) return result as unknown as Result<never, SchemaError>;
     // Cache the parsed fields
     PARSED_CACHE.set(expr, result.value);
+    // Why: Brand the validated string as CronExpression (nominal type boundary).
     return Ok(expr as unknown as CronExpression);
   },
   next: nextOccurrence,

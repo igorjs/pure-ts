@@ -303,6 +303,9 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
         }
         group.push(r.value);
       }
+      // Why: groups is Record<string, T[]> but we need Record<K, readonly T[]>.
+      // K is a subtype of string (from the key function), and T[] is readonly T[] compatible.
+      // TS can't narrow the index signature from string to K.
       return Ok(groups as unknown as Readonly<Record<K, readonly T[]>>);
     }),
 

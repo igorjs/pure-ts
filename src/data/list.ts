@@ -336,6 +336,8 @@ export const createListProxy = <T>(raw: readonly T[]): ImmutableList<T> => {
   const proxy = new Proxy(
     raw,
     LIST_HANDLER as ProxyHandler<readonly T[]>,
+    // Why: Proxy<readonly T[]> satisfies ImmutableList<T> structurally
+    // (methods + index access + iteration), but TS can't prove Proxy = ImmutableList.
   ) as unknown as ImmutableList<T>;
   LIST_PROXY_CACHE.set(raw, proxy);
   return proxy;
