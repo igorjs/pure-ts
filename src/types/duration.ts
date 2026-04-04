@@ -84,6 +84,35 @@ const durationOrd: Ord<Duration> = Object.freeze({
     sign((a as unknown as number) - (b as unknown as number)),
 });
 
+// ── Formatting ──────────────────────────────────────────────────────────────
+
+/**
+ * Format a duration as a human-readable string.
+ * Uses the largest appropriate unit: "2h 30m 15s", "500ms", "0ms".
+ */
+const format = (d: Duration): string => {
+  const ms = d as unknown as number;
+  const absMs = Math.abs(ms);
+  const prefix = ms < 0 ? "-" : "";
+
+  if (absMs === 0) return "0ms";
+
+  const days = Math.floor(absMs / 86_400_000);
+  const hours = Math.floor((absMs % 86_400_000) / 3_600_000);
+  const mins = Math.floor((absMs % 3_600_000) / 60_000);
+  const secs = Math.floor((absMs % 60_000) / 1_000);
+  const remainMs = absMs % 1_000;
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (mins > 0) parts.push(`${mins}m`);
+  if (secs > 0) parts.push(`${secs}s`);
+  if (remainMs > 0) parts.push(`${remainMs}ms`);
+
+  return prefix + parts.join(" ");
+};
+
 // ── Zero constant ───────────────────────────────────────────────────────────
 
 const zeroDuration: Duration = brand(0);
@@ -122,6 +151,7 @@ export const Duration: {
   readonly multiply: (d: Duration, factor: number) => Duration;
   readonly isZero: (d: Duration) => boolean;
   readonly isPositive: (d: Duration) => boolean;
+  readonly format: (d: Duration) => string;
   readonly zero: Duration;
   readonly eq: Eq<Duration>;
   readonly ord: Ord<Duration>;
@@ -140,6 +170,7 @@ export const Duration: {
   multiply,
   isZero,
   isPositive,
+  format,
   zero: zeroDuration,
   eq: durationEq,
   ord: durationOrd,
