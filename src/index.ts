@@ -49,6 +49,8 @@ export function match<T, U>(value: Option<T>, matcher: OptionMatcher<T, U>): U;
 export function match(value: { match(m: object): unknown }, matcher: object): unknown {
   return value.match(matcher);
 }
+export { Cache, type CacheInstance, type CacheOptions } from "./async/cache.js";
+export { Channel } from "./async/channel.js";
 export {
   CircuitBreaker,
   CircuitOpen,
@@ -56,15 +58,34 @@ export {
   type CircuitBreakerPolicy,
   type CircuitState,
 } from "./async/circuit-breaker.js";
+export { Env } from "./async/env.js";
 export { Lazy } from "./async/lazy.js";
+export {
+  RateLimiter,
+  RateLimited,
+  type RateLimiterInstance,
+  type RateLimiterPolicy,
+} from "./async/rate-limiter.js";
 export { Retry, type RetryPolicy } from "./async/retry.js";
+export { Semaphore, Mutex, type SemaphoreInstance, type MutexInstance } from "./async/semaphore.js";
 export { Stream } from "./async/stream.js";
 export { Task } from "./async/task.js";
+export {
+  Client,
+  type ClientInstance,
+  type ClientOptions,
+  type ClientResponse,
+  type ClientError,
+  HttpError,
+  NetworkError,
+  ParseError,
+} from "./client.js";
 export { Eq } from "./core/eq.js";
 export { Lens, LensOptional, Prism, Traversal } from "./core/lens.js";
 export { Match } from "./core/match.js";
 export { Ord } from "./core/ord.js";
 export { flow, pipe } from "./core/pipe.js";
+export { State } from "./core/state.js";
 export { isImmutable, List, Record } from "./data/constructors.js";
 export type { DeepReadonly } from "./data/internals.js";
 export { Codec, type CodecType } from "./data/codec.js";
@@ -101,3 +122,11 @@ export { Cron, type CronExpression } from "./types/cron.js";
 export { Duration } from "./types/duration.js";
 export { ErrType, type ErrTypeConstructor } from "./types/error.js";
 export type { Type } from "./types/nominal.js";
+export { Config } from "./runtime/config.js";
+export { Logger } from "./runtime/logger.js";
+export {
+  WebSocket,
+  type WebSocketConnection,
+  type WebSocketHandler,
+  type WebSocketRouter,
+} from "./ws.js";
