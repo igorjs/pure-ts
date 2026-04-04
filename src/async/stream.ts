@@ -54,6 +54,14 @@ export interface Stream<T, E> {
   readonly first: () => TaskLike<Option<T>, E>;
   readonly concat: (other: Stream<T, E>) => Stream<T, E>;
   readonly zip: <U>(other: Stream<U, E>) => Stream<[T, U], E>;
+  /** Sliding window of fixed size over the stream. */
+  readonly window: (size: number) => Stream<readonly T[], E>;
+  /** Group all elements by key, collecting into a record of arrays. */
+  readonly groupBy: <K extends string>(
+    fn: (value: T) => K,
+  ) => TaskLike<Readonly<Record<K, readonly T[]>>, E>;
+  /** Scan (running fold) producing intermediate accumulated values. */
+  readonly scan: <U>(fn: (acc: U, value: T) => U, init: U) => Stream<U, E>;
   readonly run: () => AsyncIterable<Result<T, E>>;
 }
 
@@ -258,6 +266,57 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
             continue;
           }
           yield Ok([rA.value, rB.value] as [T, U]);
+        }
+      }),
+    ),
+
+  window: (size: number): Stream<readonly T[], E> =>
+    createStream(
+      gen<readonly T[], E>(async function* () {
+        const buffer: T[] = [];
+        for await (const r of source()) {
+          if (r.isErr) {
+            yield r as unknown as Result<readonly T[], E>;
+            continue;
+          }
+          buffer.push(r.value);
+          if (buffer.length >= size) {
+            yield Ok(buffer.slice() as readonly T[]);
+            buffer.shift();
+          }
+        }
+      }),
+    ),
+
+  groupBy: <K extends string>(
+    fn: (value: T) => K,
+  ): TaskLike<Readonly<Record<K, readonly T[]>>, E> =>
+    mkTask(async () => {
+      const groups: Record<string, T[]> = {};
+      for await (const r of source()) {
+        if (r.isErr) return r as unknown as Result<Readonly<Record<K, readonly T[]>>, E>;
+        const key = fn(r.value);
+        let group = groups[key];
+        if (group === undefined) {
+          group = [];
+          groups[key] = group;
+        }
+        group.push(r.value);
+      }
+      return Ok(groups as unknown as Readonly<Record<K, readonly T[]>>);
+    }),
+
+  scan: <U>(fn: (acc: U, value: T) => U, init: U): Stream<U, E> =>
+    createStream(
+      gen<U, E>(async function* () {
+        let acc = init;
+        for await (const r of source()) {
+          if (r.isErr) {
+            yield r as unknown as Result<U, E>;
+            continue;
+          }
+          acc = fn(acc, r.value);
+          yield Ok(acc);
         }
       }),
     ),
