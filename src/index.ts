@@ -42,7 +42,15 @@ export function match<T, U>(value: Option<T>, matcher: OptionMatcher<T, U>): U;
 export function match(value: { match(m: object): unknown }, matcher: object): unknown {
   return value.match(matcher);
 }
+export {
+  CircuitBreaker,
+  CircuitOpen,
+  type CircuitBreakerInstance,
+  type CircuitBreakerPolicy,
+  type CircuitState,
+} from "./async/circuit-breaker.js";
 export { Lazy } from "./async/lazy.js";
+export { Retry, type RetryPolicy } from "./async/retry.js";
 export { Task } from "./async/task.js";
 export { Eq } from "./core/eq.js";
 export { Lens, LensOptional } from "./core/lens.js";
