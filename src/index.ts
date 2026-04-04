@@ -54,7 +54,7 @@ export { Retry, type RetryPolicy } from "./async/retry.js";
 export { Stream } from "./async/stream.js";
 export { Task } from "./async/task.js";
 export { Eq } from "./core/eq.js";
-export { Lens, LensOptional } from "./core/lens.js";
+export { Lens, LensOptional, Prism, Traversal } from "./core/lens.js";
 export { Match } from "./core/match.js";
 export { Ord } from "./core/ord.js";
 export { flow, pipe } from "./core/pipe.js";

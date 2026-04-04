@@ -203,3 +203,123 @@ export const LensOptional: {
   from: <S, A>(getOption: (s: S) => Option<A>, set: (a: A, s: S) => S): LensOptional<S, A> =>
     createOptional(getOption, set),
 };
+
+// ── Prism ───────────────────────────────────────────────────────────────────
+
+/**
+ * A prism focuses on a variant of a sum type (e.g., Result.Ok, Option.Some).
+ *
+ * `getOption` extracts the value if the variant matches; `reverseGet`
+ * constructs the sum type from the focused value.
+ *
+ * @example
+ * ```ts
+ * const okPrism = Prism.from<Result<number, string>, number>(
+ *   r => r.isOk ? Some(r.value) : None,
+ *   Ok,
+ * );
+ * okPrism.getOption(Ok(42));  // Some(42)
+ * okPrism.getOption(Err('x')); // None
+ * okPrism.reverseGet(42);     // Ok(42)
+ * ```
+ */
+export interface Prism<S, A> {
+  readonly getOption: (source: S) => Option<A>;
+  readonly reverseGet: (value: A) => S;
+  readonly modify: (fn: (a: A) => A) => (source: S) => S;
+  readonly compose: <B>(other: Prism<A, B>) => Prism<S, B>;
+  readonly toOptional: () => LensOptional<S, A>;
+}
+
+const createPrism = <S, A>(getOption: (s: S) => Option<A>, reverseGet: (a: A) => S): Prism<S, A> =>
+  Object.freeze({
+    getOption,
+    reverseGet,
+    modify:
+      (fn: (a: A) => A) =>
+      (source: S): S => {
+        const current = getOption(source);
+        return current.isSome ? reverseGet(fn(current.value)) : source;
+      },
+    compose: <B>(other: Prism<A, B>): Prism<S, B> =>
+      createPrism(
+        (s: S) => {
+          const a = getOption(s);
+          return a.isSome ? other.getOption(a.value) : None;
+        },
+        (b: B) => reverseGet(other.reverseGet(b)),
+      ),
+    toOptional: (): LensOptional<S, A> => createOptional(getOption, (a: A) => reverseGet(a)),
+  });
+
+/**
+ * Create prisms for focusing on sum type variants.
+ *
+ * @example
+ * ```ts
+ * const strPrism = Prism.from<string | number, string>(
+ *   v => typeof v === 'string' ? Some(v) : None,
+ *   s => s,
+ * );
+ * ```
+ */
+export const Prism: {
+  readonly from: <S, A>(getOption: (s: S) => Option<A>, reverseGet: (a: A) => S) => Prism<S, A>;
+} = {
+  from: createPrism,
+};
+
+// ── Traversal ───────────────────────────────────────────────────────────────
+
+/**
+ * A traversal focuses on zero or more targets within a structure.
+ *
+ * Unlike a Lens (exactly one target) or Optional (zero or one),
+ * a Traversal can read and modify multiple elements at once.
+ *
+ * @example
+ * ```ts
+ * const allItems = Traversal.fromArray<number>();
+ * allItems.getAll([1, 2, 3]);          // [1, 2, 3]
+ * allItems.modify(n => n * 2)([1, 2]); // [2, 4]
+ * ```
+ */
+export interface Traversal<S, A> {
+  readonly getAll: (source: S) => readonly A[];
+  readonly modify: (fn: (a: A) => A) => (source: S) => S;
+  readonly set: (value: A) => (source: S) => S;
+}
+
+/**
+ * Create traversals for focusing on multiple targets.
+ */
+export const Traversal: {
+  readonly fromArray: <T>() => Traversal<readonly T[], T>;
+  readonly from: <S, A>(
+    getAll: (s: S) => readonly A[],
+    modify: (fn: (a: A) => A, s: S) => S,
+  ) => Traversal<S, A>;
+} = {
+  fromArray: <T>(): Traversal<readonly T[], T> =>
+    Object.freeze({
+      getAll: (source: readonly T[]) => source,
+      modify:
+        (fn: (a: T) => T) =>
+        (source: readonly T[]): readonly T[] =>
+          source.map(fn),
+      set:
+        (value: T) =>
+        (source: readonly T[]): readonly T[] =>
+          source.map(() => value),
+    }),
+
+  from: <S, A>(
+    getAll: (s: S) => readonly A[],
+    modify: (fn: (a: A) => A, s: S) => S,
+  ): Traversal<S, A> =>
+    Object.freeze({
+      getAll,
+      modify: (fn: (a: A) => A) => (source: S) => modify(fn, source),
+      set: (value: A) => (source: S) => modify(() => value, source),
+    }),
+};
