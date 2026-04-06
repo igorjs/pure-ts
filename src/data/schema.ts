@@ -239,7 +239,45 @@ const unionSchema = <T extends readonly SchemaType<any>[]>(
  * type User = Schema.Infer<typeof UserSchema>;
  * ```
  */
-export const Schema = {
+export const Schema: {
+  readonly string: SchemaType<string>;
+  readonly number: SchemaType<number>;
+  readonly boolean: SchemaType<boolean>;
+  readonly object: <T extends Record<string, SchemaType<any>>>(
+    shape: T,
+  ) => SchemaType<{ [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never }>;
+  readonly array: <T>(element: SchemaType<T>) => SchemaType<readonly T[]>;
+  readonly tuple: <T extends readonly SchemaType<any>[]>(
+    ...schemas: T
+  ) => SchemaType<{
+    readonly [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never;
+  }>;
+  readonly record: <V>(value: SchemaType<V>) => SchemaType<Readonly<Record<string, V>>>;
+  readonly literal: <const T extends string | number | boolean>(value: T) => SchemaType<T>;
+  readonly union: <T extends readonly SchemaType<any>[]>(
+    ...schemas: T
+  ) => SchemaType<T[number] extends SchemaType<infer U> ? U : never>;
+  readonly discriminatedUnion: <D extends string, M extends Record<string, SchemaType<any>>>(
+    discriminant: D,
+    mapping: M,
+  ) => SchemaType<M[keyof M] extends SchemaType<infer U> ? U : never>;
+  readonly lazy: <T>(factory: () => SchemaType<T>) => SchemaType<T>;
+  readonly intersection: <A, B>(a: SchemaType<A>, b: SchemaType<B>) => SchemaType<A & B>;
+  readonly regex: (pattern: RegExp, label?: string) => SchemaType<string>;
+  readonly nonEmpty: SchemaType<string>;
+  readonly minLength: (n: number) => SchemaType<string>;
+  readonly maxLength: (n: number) => SchemaType<string>;
+  readonly email: SchemaType<string>;
+  readonly url: SchemaType<string>;
+  readonly uuid: SchemaType<string>;
+  readonly isoDate: SchemaType<string>;
+  readonly int: SchemaType<number>;
+  readonly min: (n: number) => SchemaType<number>;
+  readonly max: (n: number) => SchemaType<number>;
+  readonly range: (lo: number, hi: number) => SchemaType<number>;
+  readonly positive: SchemaType<number>;
+  readonly nonNegative: SchemaType<number>;
+} = {
   /** Validates that input is a `string`. */
   string: stringSchema,
   /** Validates that input is a `number` (rejects `NaN`). */
