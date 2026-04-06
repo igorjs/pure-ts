@@ -73,17 +73,13 @@ interface Writable {
 }
 
 /** Access stdout/stderr via globalThis to stay runtime-agnostic. */
+const noop: Writable = { write: () => undefined };
+
 const getStdout = (): Writable =>
-  (globalThis as unknown as { process?: { stdout?: Writable } }).process?.stdout ?? {
-    // biome-ignore lint/suspicious/noEmptyBlockStatements: fallback noop when no stdout/stderr
-    write: () => {},
-  };
+  (globalThis as unknown as { process?: { stdout?: Writable } }).process?.stdout ?? noop;
 
 const getStderr = (): Writable =>
-  (globalThis as unknown as { process?: { stderr?: Writable } }).process?.stderr ?? {
-    // biome-ignore lint/suspicious/noEmptyBlockStatements: fallback noop when no stdout/stderr
-    write: () => {},
-  };
+  (globalThis as unknown as { process?: { stderr?: Writable } }).process?.stderr ?? noop;
 
 /** JSON sink: one JSON object per line. Suitable for production log aggregators. */
 const jsonSink: LogSink = (record: LogRecord): void => {
@@ -103,8 +99,7 @@ const prettySink: LogSink = (record: LogRecord): void => {
 };
 
 /** Silent sink: discards all records. Useful for testing. */
-// biome-ignore lint/suspicious/noEmptyBlockStatements: silent sink intentionally does nothing
-const silentSink: LogSink = (): void => {};
+const silentSink: LogSink = (): void => undefined;
 
 // ── Implementation ──────────────────────────────────────────────────────────
 

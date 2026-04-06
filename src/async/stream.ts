@@ -77,6 +77,32 @@ const gen = <T, E>(
   fn: () => AsyncGenerator<Result<T, E>, void, undefined>,
 ): (() => AsyncIterable<Result<T, E>>) => fn as () => AsyncIterable<Result<T, E>>;
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Zip two async iterables of Results, pairing elements 1:1. */
+async function* zipIterators<T, U, E>(
+  a: AsyncIterable<Result<T, E>>,
+  b: AsyncIterable<Result<U, E>>,
+): AsyncGenerator<Result<[T, U], E>> {
+  const iterA = a[Symbol.asyncIterator]();
+  const iterB = b[Symbol.asyncIterator]();
+  while (true) {
+    const [nextA, nextB] = await Promise.all([iterA.next(), iterB.next()]);
+    if (nextA.done || nextB.done) break;
+    const rA = nextA.value;
+    const rB = nextB.value;
+    if (rA.isErr) {
+      yield castErr(rA);
+      continue;
+    }
+    if (rB.isErr) {
+      yield castErr(rB);
+      continue;
+    }
+    yield Ok([rA.value, rB.value] as [T, U]);
+  }
+}
+
 // ── Implementation ──────────────────────────────────────────────────────────
 
 const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T, E> => ({
@@ -249,25 +275,8 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
 
   zip: <U>(other: Stream<U, E>): Stream<[T, U], E> =>
     createStream(
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: zip handles two iterators and error paths
       gen<[T, U], E>(async function* () {
-        const iterA = source()[Symbol.asyncIterator]();
-        const iterB = other.run()[Symbol.asyncIterator]();
-        while (true) {
-          const [a, b] = await Promise.all([iterA.next(), iterB.next()]);
-          if (a.done || b.done) break;
-          const rA = a.value;
-          const rB = b.value;
-          if (rA.isErr) {
-            yield castErr(rA);
-            continue;
-          }
-          if (rB.isErr) {
-            yield castErr(rB);
-            continue;
-          }
-          yield Ok([rA.value, rB.value] as [T, U]);
-        }
+        yield* zipIterators(source(), other.run());
       }),
     ),
 

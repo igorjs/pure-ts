@@ -12,7 +12,7 @@
  */
 
 import type { Result } from "./core/result.js";
-import { Err, Ok } from "./core/result.js";
+import { castErr, Err, Ok } from "./core/result.js";
 import { ErrType, type ErrTypeConstructor } from "./types/error.js";
 
 // ── Error types ─────────────────────────────────────────────────────────────
@@ -149,31 +149,48 @@ const createClient = (config: ClientOptions = {}): ClientInstance => {
   const baseUrl = config.baseUrl ?? "";
   const baseHeaders = config.headers ?? {};
 
+  /** Build RequestInit from method, headers, and options. */
+  const buildInit = (
+    method: string,
+    headers: Record<string, string>,
+    options?: ClientRequestOptions,
+  ): RequestInit => {
+    const init: RequestInit = { method, headers };
+    if (options?.body !== undefined && options.body !== null) {
+      (init as { body: string | ReadableStream<Uint8Array> }).body = options.body;
+    }
+    if (options?.signal !== undefined) {
+      (init as { signal: AbortSignal }).signal = options.signal;
+    }
+    return init;
+  };
+
+  /** Execute fetch, mapping errors to Result. */
+  const executeFetch = async (
+    url: string,
+    init: RequestInit,
+  ): Promise<Result<Response, ClientError>> => {
+    try {
+      return Ok(await fetchFn(url, init));
+    } catch (e) {
+      return Err(NetworkError(e instanceof Error ? e.message : String(e)));
+    }
+  };
+
   const request = (
     method: string,
     path: string,
     options?: ClientRequestOptions,
   ): TaskLike<ClientResponse, ClientError> =>
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: request builder handles headers, body, signal, and error mapping
     mkTask(async (): Promise<Result<ClientResponse, ClientError>> => {
       const url = baseUrl + path;
       const headers = { ...baseHeaders, ...options?.headers };
+      const init = buildInit(method, headers, options);
 
-      let response: Response;
-      try {
-        const init: RequestInit = { method, headers };
-        if (options?.body !== undefined && options.body !== null) {
-          (init as { body: string | ReadableStream<Uint8Array> }).body = options.body;
-        }
-        if (options?.signal !== undefined) {
-          (init as { signal: AbortSignal }).signal = options.signal;
-        }
-        response = await fetchFn(url, init);
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        return Err(NetworkError(message));
-      }
+      const fetchResult = await executeFetch(url, init);
+      if (fetchResult.isErr) return castErr(fetchResult);
 
+      const response = fetchResult.value;
       if (!response.ok) {
         return Err(
           HttpError(`${response.status} ${response.statusText}`, {

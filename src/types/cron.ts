@@ -50,61 +50,94 @@ const FIELD_NAMES: readonly string[] = ["minute", "hour", "day-of-month", "month
 const cronErr = (expected: string, received: string): Result<never, SchemaError> =>
   Err({ path: ["cron"], expected, received });
 
+/** Expand a wildcard with step into a set of values. */
+const expandWildcard = (min: number, max: number, step: number, values: Set<number>): void => {
+  for (let i = min; i <= max; i += step) values.add(i);
+};
+
+/** Parse a range expression (e.g., "1-5") with step into a set of values. */
+const expandRange = (
+  expr: string,
+  min: number,
+  max: number,
+  step: number,
+  fieldName: string,
+  values: Set<number>,
+): Result<void, SchemaError> => {
+  const [startStr, endStr] = expr.split("-");
+  const start = Number(startStr);
+  const end = Number(endStr);
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < min ||
+    end > max ||
+    start > end
+  ) {
+    return cronErr(`${fieldName} range ${min}-${max}`, `"${expr}"`);
+  }
+  for (let i = start; i <= end; i += step) values.add(i);
+  return Ok(undefined);
+};
+
+/** Parse a single numeric value into a set. */
+const expandSingle = (
+  expr: string,
+  min: number,
+  max: number,
+  fieldName: string,
+  values: Set<number>,
+): Result<void, SchemaError> => {
+  const val = Number(expr);
+  if (!Number.isInteger(val) || val < min || val > max) {
+    return cronErr(`${fieldName} value ${min}-${max}`, `"${expr}"`);
+  }
+  values.add(val);
+  return Ok(undefined);
+};
+
+/** Parse a single cron field part (between commas). */
+const parsePart = (
+  part: string,
+  min: number,
+  max: number,
+  fieldName: string,
+  values: Set<number>,
+): Result<void, SchemaError> => {
+  const stepParts = part.split("/");
+  if (stepParts.length > 2) {
+    return cronErr(`valid ${fieldName} field`, `invalid step "${part}"`);
+  }
+
+  const step = stepParts.length === 2 ? Number(stepParts[1]) : 1;
+  if (!Number.isInteger(step) || step < 1) {
+    return cronErr(`positive step for ${fieldName}`, `"${stepParts[1]}"`);
+  }
+
+  const range = stepParts[0]!;
+
+  if (range === "*") {
+    expandWildcard(min, max, step, values);
+    return Ok(undefined);
+  }
+  if (range.includes("-")) {
+    return expandRange(range, min, max, step, fieldName, values);
+  }
+  return expandSingle(range, min, max, fieldName, values);
+};
+
 /** Parse a single cron field. Supports wildcards, ranges, steps, and lists. */
 const parseField = (
   field: string,
   min: number,
   max: number,
   fieldName: string,
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: cron field parsing has inherent branching (wildcards, ranges, steps, lists)
 ): Result<CronField, SchemaError> => {
   const values = new Set<number>();
-
   for (const part of field.split(",")) {
-    // Handle step: "*/5" or "1-10/2"
-    const stepParts = part.split("/");
-    if (stepParts.length > 2) {
-      return cronErr(`valid ${fieldName} field`, `invalid step "${part}"`);
-    }
-
-    const step = stepParts.length === 2 ? Number(stepParts[1]) : 1;
-    if (!Number.isInteger(step) || step < 1) {
-      return cronErr(`positive step for ${fieldName}`, `"${stepParts[1]}"`);
-    }
-
-    const range = stepParts[0]!;
-
-    if (range === "*") {
-      for (let i = min; i <= max; i += step) values.add(i);
-      continue;
-    }
-
-    // Handle range: "1-5"
-    if (range.includes("-")) {
-      const [startStr, endStr] = range.split("-");
-      const start = Number(startStr);
-      const end = Number(endStr);
-      if (
-        !Number.isInteger(start) ||
-        !Number.isInteger(end) ||
-        start < min ||
-        end > max ||
-        start > end
-      ) {
-        return cronErr(`${fieldName} range ${min}-${max}`, `"${range}"`);
-      }
-      for (let i = start; i <= end; i += step) values.add(i);
-      continue;
-    }
-
-    // Handle single value
-    const val = Number(range);
-    if (!Number.isInteger(val) || val < min || val > max) {
-      return cronErr(`${fieldName} value ${min}-${max}`, `"${range}"`);
-    }
-    values.add(val);
+    const result = parsePart(part, min, max, fieldName, values);
+    if (result.isErr) return castErr(result);
   }
-
   return Ok({ values });
 };
 
