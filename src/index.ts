@@ -22,9 +22,12 @@
  *   Retry / CircuitBreaker            - resilience policies
  *   Semaphore / Mutex / RateLimiter   - concurrency control
  *   Cache<K, V> / Channel<T>         - caching and async communication
+ *   Timer                             - sleep, interval, delay, deadline
  *
  * IO:
  *   Json / File                       - safe parse, read, write returning Result/Task
+ *   Crypto / Encoding / Clone         - web standard crypto, encoding, cloning
+ *   Compression / Url                 - web standard compression and URL parsing
  *   Client                            - HTTP client on Task with typed errors
  *   WebSocket                         - typed handler routing
  *
@@ -79,6 +82,7 @@ export { Retry, type RetryPolicy } from "./async/retry.js";
 export { Mutex, type MutexInstance, Semaphore, type SemaphoreInstance } from "./async/semaphore.js";
 export { Stream } from "./async/stream.js";
 export { Task } from "./async/task.js";
+export { TimeoutError, Timer } from "./async/timer.js";
 export {
   Client,
   type ClientError,
@@ -102,7 +106,13 @@ export type { ImmutableList, ListMethods } from "./data/list.js";
 export { NonEmptyList } from "./data/non-empty-list.js";
 export type { ImmutableRecord, RecordMethods } from "./data/record.js";
 export { Schema, type SchemaError, type SchemaType } from "./data/schema.js";
-export { File, FileError, Json, JsonError } from "./io.js";
+export { Clone, CloneError } from "./io/clone.js";
+export { Compression, CompressionError } from "./io/compression.js";
+export { Crypto, CryptoError } from "./io/crypto.js";
+export { Encoding, EncodingError } from "./io/encoding.js";
+export { File, FileError } from "./io/file.js";
+export { Json, JsonError } from "./io/json.js";
+export { Url, UrlError } from "./io/url.js";
 export { Program } from "./program.js";
 export { Config } from "./runtime/config.js";
 export { Logger } from "./runtime/logger.js";

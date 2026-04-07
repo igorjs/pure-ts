@@ -1,73 +1,26 @@
 /**
- * @module io
+ * @module io/file
  *
- * Type-safe wrappers for common I/O operations.
+ * Type-safe file system operations that return Task instead of throwing.
  *
- * **Why IO wrappers?**
- * `JSON.parse` throws on invalid input. `fs.readFile` throws on missing files.
- * `fetch` throws on network errors and treats 404 as success. These wrappers
- * return `Result` or `Task` so errors are values, not exceptions. Every
- * failure path is visible in the type signature.
+ * **Why wrap fs/promises?**
+ * Node's file system API throws on missing files, permission errors, and
+ * invalid paths. Wrapping in Task makes failures values, not exceptions.
+ * Dynamic import keeps the module compilable without Node.js types, so
+ * the same source works across runtimes (Node, Deno, Bun).
  */
 
-import type { Result } from "./core/result.js";
-import { castErr, Err, Ok } from "./core/result.js";
-import { Eol } from "./runtime/platform.js";
-import { ErrType, type ErrTypeConstructor } from "./types/error.js";
+import type { Result } from "../core/result.js";
+import { castErr, Err, Ok } from "../core/result.js";
+import { Eol } from "../runtime/platform.js";
+import { ErrType, type ErrTypeConstructor } from "../types/error.js";
 
 // ── Error types ─────────────────────────────────────────────────────────────
-
-/** JSON parse or stringify failed. */
-export const JsonError: ErrTypeConstructor<"JsonError", string> = ErrType("JsonError");
 
 /** File system operation failed. */
 export const FileError: ErrTypeConstructor<"FileError", string> = ErrType("FileError");
 
-// ── JSON ────────────────────────────────────────────────────────────────────
-
-/**
- * Type-safe JSON operations that return Result instead of throwing.
- *
- * @example
- * ```ts
- * Json.parse('{"name":"Alice"}');  // Ok({ name: 'Alice' })
- * Json.parse('not json');          // Err(JsonError('...'))
- *
- * Json.stringify({ name: 'Alice' }); // Ok('{"name":"Alice"}')
- * Json.stringify(circular);          // Err(JsonError('...'))
- * ```
- */
-export const Json: {
-  /** Parse a JSON string. Returns Result instead of throwing. */
-  readonly parse: <T = unknown>(input: string) => Result<T, ErrType<"JsonError">>;
-  /** Stringify a value. Returns Result instead of throwing on circular refs. */
-  readonly stringify: (
-    value: unknown,
-    replacer?: (key: string, value: unknown) => unknown,
-    space?: number,
-  ) => Result<string, ErrType<"JsonError">>;
-} = {
-  parse: <T = unknown>(input: string): Result<T, ErrType<"JsonError">> => {
-    try {
-      return Ok(JSON.parse(input) as T);
-    } catch (e) {
-      return Err(JsonError(e instanceof Error ? e.message : String(e)));
-    }
-  },
-  stringify: (
-    value: unknown,
-    replacer?: (key: string, value: unknown) => unknown,
-    space?: number,
-  ): Result<string, ErrType<"JsonError">> => {
-    try {
-      return Ok(JSON.stringify(value, replacer, space));
-    } catch (e) {
-      return Err(JsonError(e instanceof Error ? e.message : String(e)));
-    }
-  },
-};
-
-// ── File system ─────────────────────────────────────────────────────────────
+// ── Task-like ───────────────────────────────────────────────────────────────
 
 /** Task-like interface. */
 interface TaskLike<T, E> {
@@ -75,6 +28,17 @@ interface TaskLike<T, E> {
 }
 
 const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
+
+// ── File stat result ────────────────────────────────────────────────────────
+
+/** Metadata returned by File.stat. */
+interface FileStat {
+  readonly isFile: boolean;
+  readonly isDirectory: boolean;
+  readonly size: number;
+}
+
+// ── Structural type for fs/promises ─────────────────────────────────────────
 
 /** Structural type for the fs/promises module. */
 interface FsPromises {
@@ -84,6 +48,9 @@ interface FsPromises {
   stat(path: string): Promise<{ isFile(): boolean; isDirectory(): boolean; size: number }>;
   unlink(path: string): Promise<void>;
   readdir(path: string): Promise<string[]>;
+  copyFile(src: string, dest: string): Promise<void>;
+  rename(oldPath: string, newPath: string): Promise<void>;
+  mkdtemp(prefix: string): Promise<string>;
 }
 
 /** Lazy-load fs/promises to stay runtime-agnostic. */
@@ -98,6 +65,8 @@ const getFsPromises = async (): Promise<Result<FsPromises, ErrType<"FileError">>
     return Err(FileError("File system is not available in this runtime"));
   }
 };
+
+// ── File ────────────────────────────────────────────────────────────────────
 
 /**
  * Type-safe file system operations that return Task instead of throwing.
@@ -128,6 +97,14 @@ export const File: {
   readonly remove: (path: string) => TaskLike<void, ErrType<"FileError">>;
   /** List entries in a directory. */
   readonly list: (path: string) => TaskLike<readonly string[], ErrType<"FileError">>;
+  /** Get file or directory metadata (isFile, isDirectory, size). */
+  readonly stat: (path: string) => TaskLike<FileStat, ErrType<"FileError">>;
+  /** Copy a file from src to dest. */
+  readonly copy: (src: string, dest: string) => TaskLike<void, ErrType<"FileError">>;
+  /** Rename (move) a file or directory. */
+  readonly rename: (oldPath: string, newPath: string) => TaskLike<void, ErrType<"FileError">>;
+  /** Create a temporary directory with an optional prefix. Returns the absolute path. */
+  readonly tempDir: (prefix?: string) => TaskLike<string, ErrType<"FileError">>;
 } = {
   read: (path: string) =>
     mkTask(async () => {
@@ -159,8 +136,8 @@ export const File: {
       const fsResult = await getFsPromises();
       if (fsResult.isErr) return castErr(fsResult);
       try {
-        const stat = await fsResult.value.stat(path);
-        return Ok(stat.isFile());
+        const s = await fsResult.value.stat(path);
+        return Ok(s.isFile());
       } catch {
         return Ok(false);
       }
@@ -198,6 +175,58 @@ export const File: {
         return Ok(await fsResult.value.readdir(path));
       } catch (e) {
         return Err(FileError(e instanceof Error ? e.message : String(e), { path }));
+      }
+    }),
+
+  stat: (path: string) =>
+    mkTask(async () => {
+      const fsResult = await getFsPromises();
+      if (fsResult.isErr) return castErr(fsResult);
+      try {
+        const s = await fsResult.value.stat(path);
+        return Ok({
+          isFile: s.isFile(),
+          isDirectory: s.isDirectory(),
+          size: s.size,
+        });
+      } catch (e) {
+        return Err(FileError(e instanceof Error ? e.message : String(e), { path }));
+      }
+    }),
+
+  copy: (src: string, dest: string) =>
+    mkTask(async () => {
+      const fsResult = await getFsPromises();
+      if (fsResult.isErr) return castErr(fsResult);
+      try {
+        await fsResult.value.copyFile(src, dest);
+        return Ok(undefined);
+      } catch (e) {
+        return Err(FileError(e instanceof Error ? e.message : String(e), { src, dest }));
+      }
+    }),
+
+  rename: (oldPath: string, newPath: string) =>
+    mkTask(async () => {
+      const fsResult = await getFsPromises();
+      if (fsResult.isErr) return castErr(fsResult);
+      try {
+        await fsResult.value.rename(oldPath, newPath);
+        return Ok(undefined);
+      } catch (e) {
+        return Err(FileError(e instanceof Error ? e.message : String(e), { oldPath, newPath }));
+      }
+    }),
+
+  tempDir: (prefix?: string) =>
+    mkTask(async () => {
+      const fsResult = await getFsPromises();
+      if (fsResult.isErr) return castErr(fsResult);
+      try {
+        const dir = await fsResult.value.mkdtemp(prefix ?? "pure-ts-");
+        return Ok(dir);
+      } catch (e) {
+        return Err(FileError(e instanceof Error ? e.message : String(e)));
       }
     }),
 };
