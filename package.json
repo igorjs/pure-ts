@@ -1,6 +1,6 @@
 {
   "name": "@igorjs/pure-ts",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Pure TS: functional application framework for TypeScript. Result, Option, Task, Stream, immutable Record/List, Schema, Codec, Lens, Retry, CircuitBreaker, HTTP Server. Zero dependencies.",
   "type": "module",
   "main": "./dist/index.js",
