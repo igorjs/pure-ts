@@ -6,11 +6,21 @@ Errors are values, not exceptions. Data is immutable, enforced at runtime. Async
 
 ```ts
 import {
-  Record, List, NonEmptyList, Ok, Err, Some, None,
-  Result, Option, Schema, Codec, pipe, flow, Match,
-  Eq, Ord, Lens, Prism, Traversal, Duration, Cron,
-  Task, Stream, Lazy, Retry, CircuitBreaker, ErrType,
-  Server, Program, json, text, html, redirect,
+  // Core
+  Result, Option, pipe, flow, Match, Eq, Ord, State,
+  Lens, LensOptional, Prism, Traversal,
+  // Data
+  Record, List, NonEmptyList, Schema, Codec,
+  // Types
+  ErrType, Duration, Cron,
+  // Async
+  Task, Stream, Lazy, Env, Retry, CircuitBreaker,
+  Semaphore, Mutex, RateLimiter, Cache, Channel,
+  // IO
+  Json, File, Client,
+  // Runtime
+  Server, Program, Logger, Config, WebSocket,
+  Path, Eol, Platform,
 } from '@igorjs/pure-ts'
 ```
 
@@ -32,11 +42,12 @@ Requires Node >= 22 (LTS). Compatible with TypeScript >= 5.5 and TypeScript 7 (`
 
 | Layer | Primitives |
 |-------|------------|
-| **Core** | `Result`, `Option`, `pipe`, `flow`, `Match`, `Eq`, `Ord`, `Lens`, `Prism`, `Traversal` |
+| **Core** | `Result`, `Option`, `pipe`, `flow`, `Match`, `Eq`, `Ord`, `State`, `Lens`, `Prism`, `Traversal` |
 | **Data** | `Record`, `List`, `NonEmptyList`, `Schema`, `Codec` |
 | **Types** | `Type` (nominal branding), `ErrType`, `Duration`, `Cron` |
-| **Async** | `Task`, `Stream`, `Lazy`, `Retry`, `CircuitBreaker` |
-| **Runtime** | `Server`, `Program`, adapters for Node, Deno, Bun, Lambda |
+| **Async** | `Task`, `Stream`, `Lazy`, `Env`, `Retry`, `CircuitBreaker`, `Semaphore`, `Mutex`, `RateLimiter`, `Cache`, `Channel` |
+| **IO** | `Json`, `File`, `Client` (HTTP), `WebSocket` |
+| **Runtime** | `Server`, `Program`, `Logger`, `Config`, `Path`, `Eol`, `Platform`, adapters for Node, Deno, Bun, Lambda |
 
 ## Why
 
@@ -46,8 +57,10 @@ Requires Node >= 22 (LTS). Compatible with TypeScript >= 5.5 and TypeScript 7 (`
 - **Lazy async**: `Task` and `Stream` describe work without executing it
 - **Composable optics**: `Lens`, `Prism`, `Traversal` for immutable nested updates
 - **Boundary validation**: `Schema` parses unknown input into typed values
+- **Resilience**: `Retry`, `CircuitBreaker`, `RateLimiter`, `Semaphore` for production systems
+- **Safe IO**: `Json.parse`, `File.read`, `Client.get` return `Result`/`Task`, never throw
 - **Production-ready server**: trie-based routing, typed middleware, graceful shutdown
-- **Zero dependencies**: ships as ESM, ~4500 lines including JSDoc
+- **Zero dependencies**: ships as ESM
 
 ## Quick start
 
@@ -231,6 +244,132 @@ if (schedule.isOk) {
 }
 ```
 
+### Safe IO
+
+```ts
+// JSON: returns Result instead of throwing
+Json.parse('{"name":"Alice"}')              // Ok({ name: 'Alice' })
+Json.parse('not json')                      // Err(JsonError('...'))
+Json.stringify(data)                        // Ok('{"name":"Alice"}')
+
+// File: returns Task, never throws
+const content = await File.read('./config.json').run()
+await File.write('./out.json', data).run()
+await File.makeDir('./logs').run()
+File.exists('./config.json')                // Task<boolean, FileError>
+```
+
+### HTTP Client
+
+```ts
+const api = Client.create({
+  baseUrl: 'https://api.example.com',
+  headers: { Authorization: 'Bearer token' },
+})
+
+const result = await api.get('/users').run()
+// Ok(ClientResponse) or Err(NetworkError | HttpError)
+
+if (result.isOk) {
+  const users = await result.value.json()   // Result<T, ParseError>
+}
+```
+
+### Dependency injection
+
+```ts
+type Deps = { db: Database; logger: Logger }
+
+const getUser = (id: string) =>
+  Env.access<Deps>().flatMap(({ db }) =>
+    Env.fromSync(() => db.query(id))
+  )
+
+// Provide dependencies at the edge
+await getUser('u_123').run({ db: realDb, logger: realLogger })
+```
+
+### Resilience
+
+```ts
+// Semaphore: limit concurrent access
+const sem = Semaphore.create(3)
+const limited = sem.wrap(expensiveTask)
+
+// Rate limiter: token bucket
+const limiter = RateLimiter.create({
+  capacity: 100,
+  refillRate: 10,
+  refillInterval: Duration.seconds(1),
+})
+limiter.wrap(apiCall)                       // Err(RateLimited) when empty
+
+// Cache: TTL + LRU
+const cache = Cache.create({ ttl: Duration.minutes(5), maxSize: 1000 })
+cache.set('key', value)
+cache.get('key')                            // Option<V>
+cache.getOrElse('key', fetchFromDb)         // cache-aside pattern
+```
+
+### Channels
+
+```ts
+const ch = Channel.bounded(10)
+
+// Producer
+await ch.send('hello')
+ch.close()
+
+// Consumer (as async iterable)
+for await (const msg of ch.receive()) {
+  console.log(msg)
+}
+
+// Bridge to Stream
+const stream = Stream.from(ch.receive())
+```
+
+### Logger and Config
+
+```ts
+// Structured logging
+const log = Logger.create({ name: 'api', level: 'info' })
+log.info('request', { method: 'GET', path: '/users' })
+const child = log.child({ requestId: '123' })
+
+// Type-safe config from env
+const AppConfig = Config.from({
+  PORT: Schema.string.transform(Number).refine(n => n > 0, 'port'),
+  DATABASE_URL: Schema.string,
+  LOG_LEVEL: Schema.literal('debug').optional(),
+})
+const config = AppConfig.loadFrom(process.env)  // Result<Config, SchemaError>
+```
+
+### Cross-platform paths
+
+```ts
+Path.join('src', 'core', 'result.ts')       // native separator
+Path.basename('/home/user/file.ts')         // 'file.ts'
+Path.toPosix('src\\core\\file.ts')          // 'src/core/file.ts'
+
+Eol.normalize('line1\r\nline2')             // 'line1\nline2'
+Eol.split('line1\nline2')                   // ['line1', 'line2']
+```
+
+### Concurrent servers
+
+```ts
+const publicApi = Server('public').get('/health', () => json({ ok: true }))
+const adminApi = Server('admin').get('/metrics', () => json({ uptime: 0 }))
+
+Program('platform', signal => Task.all([
+  publicApi.serve({ port: 3000, signal }),
+  adminApi.serve({ port: 3001, signal }),
+])).run()
+// Ctrl+C gracefully shuts down both
+```
+
 ## API reference
 
 ### Record
@@ -360,6 +499,50 @@ Extends List. `first()`, `last()`, `head` return `T` directly (not `Option`).
 | `CircuitBreaker.create(policy)` | Create breaker: `failureThreshold`, `successThreshold`, `timeout` |
 | `breaker.protect(task)` | Wrap Task with circuit protection |
 | `breaker.state()` | `'closed'` / `'open'` / `'half-open'` |
+| `Semaphore.create(n)` | Counting semaphore: `.acquire()`, `.wrap(task)`, `.available()` |
+| `Mutex.create()` | Mutual exclusion (semaphore with 1 permit): `.wrap(task)`, `.isLocked()` |
+| `RateLimiter.create(policy)` | Token bucket: `capacity`, `refillRate`, `refillInterval` |
+| `limiter.wrap(task)` | Returns `Err(RateLimited)` when bucket is empty |
+| `Cache.create(options)` | TTL + LRU: `ttl`, `maxSize` |
+| `cache.get(key)` / `.set(key, value)` | Returns `Option`, auto-expires |
+| `cache.getOrElse(key, task)` | Cache-aside: returns cached or runs task |
+| `Channel.bounded(n)` / `.unbounded()` | Async producer/consumer with backpressure |
+| `ch.send(value)` / `ch.receive()` | Send blocks when full, receive is AsyncIterable |
+
+### Env\<R, T, E\>
+
+| Export | Description |
+|---|---|
+| `Env.of(value)` | Wrap value, ignore environment |
+| `Env.access()` | Read the full environment |
+| `Env.from(fn)` / `.fromSync(fn)` | Create from async/sync function |
+| `.map` / `.mapErr` / `.flatMap` / `.tap` | Transform |
+| `.provide(fn)` | Narrow the environment type |
+| `.provideAll(env)` | Provide all dependencies, get Task-like |
+
+### State\<S, A\>
+
+| Export | Description |
+|---|---|
+| `State.of(value)` | Pure value, state unchanged |
+| `State.get()` | Read state as value |
+| `State.set(s)` / `.modify(fn)` | Replace or transform state |
+| `.map` / `.flatMap` / `.tap` | Compose |
+| `.run(init)` | Execute: returns `[value, finalState]` |
+| `.eval(init)` / `.exec(init)` | Extract value or state only |
+
+### IO
+
+| Export | Description |
+|---|---|
+| `Json.parse(str)` | `Result<T, JsonError>`, never throws |
+| `Json.stringify(value)` | `Result<string, JsonError>`, handles circular refs |
+| `File.read(path)` | `Task<string, FileError>`, auto-normalizes line endings |
+| `File.write(path, content)` | `Task<void, FileError>` |
+| `File.exists(path)` / `.makeDir(path)` / `.remove(path)` / `.list(path)` | File system operations as Task |
+| `Client.create(options?)` | HTTP client: `baseUrl`, `headers`, custom `fetch` |
+| `client.get` / `.post` / `.put` / `.patch` / `.delete` | Returns `Task<ClientResponse, ClientError>` |
+| `WebSocket.router()` | WebSocket route builder: `.route(path, handler)`, `.match(path)` |
 
 ### Time
 
@@ -394,6 +577,7 @@ Extends List. `first()`, `last()`, `head` return `T` directly (not `Option`).
 | `.derive(resolver)` | Sequential context derivation |
 | `.onError(handler)` | Custom error handler |
 | `.fetch(request)` | WHATWG fetch handler |
+| `.serve({ port, signal })` | Returns Task for composable concurrency |
 | `.listen(options, adapter?)` | Start with Program lifecycle |
 | `json` / `text` / `html` / `redirect` | Response helpers |
 
@@ -404,6 +588,34 @@ Extends List. `first()`, `last()`, `head` return `T` directly (not `Option`).
 | `Program(name, (signal) => task)` | Create named program |
 | `.run()` | Execute: logging, signals, exit codes |
 | `.execute(signal?)` | Execute for testing: raw Result |
+
+### Logger
+
+| Export | Description |
+|---|---|
+| `Logger.create({ name, level?, sink? })` | Create structured logger |
+| `Logger.json` / `.pretty` / `.silent` | Built-in sinks |
+| `log.debug` / `.info` / `.warn` / `.error` | Log at level with optional context |
+| `log.child(context)` | Inherit context, add fields |
+| `log.named(name)` | Change logger name |
+
+### Config
+
+| Export | Description |
+|---|---|
+| `Config.from(shape)` | Define config schema from env |
+| `.load()` | Read from `process.env`, returns `Result` |
+| `.loadFrom(env)` | Read from custom record |
+
+### Platform
+
+| Export | Description |
+|---|---|
+| `Path.join` / `.normalize` / `.basename` / `.dirname` / `.extname` | OS-aware path operations |
+| `Path.toPosix(path)` | Convert to forward slashes |
+| `Eol.normalize(text)` | Replace `\r\n` with `\n` |
+| `Eol.split(text)` | Split on `\r?\n` |
+| `Platform.os` / `.isWindows` | Runtime detection |
 
 ### Utilities
 

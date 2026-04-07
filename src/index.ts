@@ -7,7 +7,7 @@
  * Core:
  *   Result<T, E>  / Option<T>         - monads for errors and optionality
  *   pipe / flow / Match               - composition and pattern matching
- *   Eq<T> / Ord<T>                    - composable equality and ordering
+ *   Eq<T> / Ord<T> / State<S, A>     - typeclasses and state monad
  *   Lens / Prism / Traversal          - optics for immutable updates
  *
  * Data:
@@ -18,11 +18,20 @@
  *
  * Async:
  *   Task<T, E> / Stream<T, E>        - lazy async computation and sequences
- *   Lazy<T>                           - deferred and cached evaluation
+ *   Lazy<T> / Env<R, T, E>           - deferred evaluation and dependency injection
  *   Retry / CircuitBreaker            - resilience policies
+ *   Semaphore / Mutex / RateLimiter   - concurrency control
+ *   Cache<K, V> / Channel<T>         - caching and async communication
+ *
+ * IO:
+ *   Json / File                       - safe parse, read, write returning Result/Task
+ *   Client                            - HTTP client on Task with typed errors
+ *   WebSocket                         - typed handler routing
  *
  * Runtime:
  *   Server / Program                  - HTTP server with typed middleware
+ *   Logger / Config                   - structured logging and env validation
+ *   Path / Eol / Platform             - cross-platform IO
  *   node / deno / bun / lambda        - runtime adapters
  */
 
