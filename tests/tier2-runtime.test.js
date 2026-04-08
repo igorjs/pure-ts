@@ -78,6 +78,50 @@ describe("Command", () => {
       `Expected stdout to contain '/tmp', got: ${result.value.stdout}`,
     );
   });
+
+  it("exec with stdin: pipes input to process", async () => {
+    const result = await Command.exec("cat", [], { stdin: "hello from stdin" }).run();
+    assert.equal(result.isOk, true);
+    assert.equal(result.value.exitCode, 0);
+    assert.equal(result.value.stdout, "hello from stdin");
+  });
+
+  it("exec with stdin: multiline input", async () => {
+    const input = "line1\nline2\nline3";
+    const result = await Command.exec("cat", [], { stdin: input }).run();
+    assert.equal(result.isOk, true);
+    assert.equal(result.value.stdout, input);
+  });
+
+  it("exec with stdin: process reads from stdin via node -e", async () => {
+    const code =
+      "process.stdin.setEncoding('utf8');let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(d.toUpperCase().trim()))";
+    const result = await Command.exec("node", ["-e", code], { stdin: "hello" }).run();
+    assert.equal(result.isOk, true);
+    assert.equal(result.value.stdout, "HELLO\n");
+  });
+
+  it("exec with timeout: completes before timeout", async () => {
+    const result = await Command.exec("echo", ["fast"], { timeout: 5000 }).run();
+    assert.equal(result.isOk, true);
+    assert.ok(result.value.stdout.includes("fast"));
+  });
+
+  it("exec with timeout: returns Err on timeout", async () => {
+    const result = await Command.exec("sleep", ["10"], { timeout: 100 }).run();
+    assert.equal(result.isErr, true);
+    assert.equal(result.error.tag, "CommandError");
+    assert.ok(
+      result.error.message.includes("timed out"),
+      `Expected timeout message, got: ${result.error.message}`,
+    );
+  });
+
+  it("exec with stdin and timeout: both work together", async () => {
+    const result = await Command.exec("cat", [], { stdin: "combined", timeout: 5000 }).run();
+    assert.equal(result.isOk, true);
+    assert.equal(result.value.stdout, "combined");
+  });
 });
 
 // =============================================================================

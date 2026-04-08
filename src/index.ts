@@ -117,7 +117,7 @@ export { Encoding, EncodingError } from "./io/encoding.js";
 export { File, FileError } from "./io/file.js";
 export { Json, JsonError } from "./io/json.js";
 export { Net, NetError, type TcpConnection } from "./io/net.js";
-export { Command, CommandError, type CommandResult } from "./io/subprocess.js";
+export { Command, CommandError, type CommandOptions, type CommandResult } from "./io/subprocess.js";
 export { Url, UrlError } from "./io/url.js";
 export { Program } from "./program.js";
 export { Config } from "./runtime/config.js";
