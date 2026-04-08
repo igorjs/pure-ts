@@ -1,8 +1,22 @@
 # Pure TS
 
+[![npm](https://img.shields.io/npm/v/@igorjs/pure-ts?color=blue)](https://www.npmjs.com/package/@igorjs/pure-ts)
+[![JSR](https://jsr.io/badges/@igorjs/pure-ts)](https://jsr.io/@igorjs/pure-ts)
+[![JSR Score](https://jsr.io/badges/@igorjs/pure-ts/score)](https://jsr.io/@igorjs/pure-ts)
+[![License](https://img.shields.io/npm/l/@igorjs/pure-ts)](https://github.com/igorjs/pure-ts/blob/main/LICENSE)
+[![Tests](https://img.shields.io/badge/tests-882_passing-brightgreen)]()
+[![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
+
 Functional application framework for TypeScript. Zero dependencies.
 
 Errors are values, not exceptions. Data is immutable, enforced at runtime. Async is lazy and composable. The type system carries everything.
+
+![Node.js](https://img.shields.io/badge/Node.js_22+-339933?logo=nodedotjs&logoColor=white)
+![Deno](https://img.shields.io/badge/Deno_2+-000000?logo=deno&logoColor=white)
+![Bun](https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white)
+![Cloudflare Workers](https://img.shields.io/badge/CF_Workers-F38020?logo=cloudflare&logoColor=white)
+![Browser](https://img.shields.io/badge/Browser-4285F4?logo=googlechrome&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript_5.5+-3178C6?logo=typescript&logoColor=white)
 
 ```ts
 import {
@@ -713,49 +727,51 @@ Extends List. `first()`, `last()`, `head` return `T` directly (not `Option`).
 
 ## Runtime compatibility
 
+Works with: &nbsp; ![Node.js](https://img.shields.io/badge/Node.js_22+-339933?logo=nodedotjs&logoColor=white) &nbsp; ![Deno](https://img.shields.io/badge/Deno_2+-000000?logo=deno&logoColor=white) &nbsp; ![Bun](https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white) &nbsp; ![Cloudflare Workers](https://img.shields.io/badge/CF_Workers-F38020?logo=cloudflare&logoColor=white) &nbsp; ![Browser](https://img.shields.io/badge/Browser-4285F4?logo=googlechrome&logoColor=white)
+
 Every module is classified by its runtime requirements. Web standard modules work everywhere. Multi-runtime modules detect Deno/Bun/Node via `globalThis`. Server-only modules gracefully return `Err` or `None` in unsupported runtimes.
 
-| Module | API | Node 22+ | Deno 2+ | Bun | CF Workers | Browser |
+| Module | API | <img src="https://img.shields.io/badge/-339933?logo=nodedotjs&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-000000?logo=deno&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-000000?logo=bun&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-F38020?logo=cloudflare&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-4285F4?logo=googlechrome&logoColor=white" height="14"> |
 |--------|-----|:---:|:---:|:---:|:---:|:---:|
-| **Result** | pure | Y | Y | Y | Y | Y |
-| **Option** | pure | Y | Y | Y | Y | Y |
-| **pipe / flow** | pure | Y | Y | Y | Y | Y |
-| **Match** | pure | Y | Y | Y | Y | Y |
-| **Eq / Ord** | pure | Y | Y | Y | Y | Y |
-| **State** | pure | Y | Y | Y | Y | Y |
-| **Lens / Prism / Traversal** | pure | Y | Y | Y | Y | Y |
-| **Record / List / NonEmptyList** | pure | Y | Y | Y | Y | Y |
-| **Schema / Codec** | pure | Y | Y | Y | Y | Y |
-| **ErrType / Type** | pure | Y | Y | Y | Y | Y |
-| **Duration / Cron** | pure | Y | Y | Y | Y | Y |
-| **Task / Stream / Lazy** | pure | Y | Y | Y | Y | Y |
-| **Env / Channel / Cache** | pure | Y | Y | Y | Y | Y |
-| **Semaphore / Mutex** | pure | Y | Y | Y | Y | Y |
-| **Json** | web | Y | Y | Y | Y | Y |
-| **Clone** | web | Y | Y | Y | Y | Y |
-| **Crypto** | web | Y | Y | Y | Y | Y |
-| **Url** | web | Y | Y | Y | Y | Y |
-| **Encoding** | web | Y | Y | Y | Y | Y |
-| **Compression** | web | Y | Y | Y | Y | Y |
-| **Timer** | web | Y | Y | Y | Y | Y |
-| **Client** | web (fetch) | Y | Y | Y | Y | Y |
-| **Path / Eol** | web | Y | Y | Y | Y | Y |
-| **Platform** | web | Y | Y | Y | Y | Y |
-| **Server.fetch** | web | Y | Y | Y | Y | Y |
-| **Stream.fromReadable** | web | Y | Y | Y | Y | Y |
-| **File** | multi-runtime | Y | Y | Y | - | - |
-| **Command** | multi-runtime | Y | Y | Y | - | - |
-| **Os** | multi-runtime | Y | Y | Y | - | - |
-| **Process** | multi-runtime | Y | Y | Y | - | - |
-| **Config** | multi-runtime | Y | Y | Y | - | - |
-| **Logger** | multi-runtime | Y | Y | Y | - | - |
-| **Server.serve/.listen** | multi-runtime | Y | Y | Y | - | - |
-| **Program** | multi-runtime | Y | Y | Y | - | - |
-| **Dns** | multi-runtime | Y | Y | Y | - | - |
-| **Net** | multi-runtime | Y | Y | Y | - | - |
-| **WebSocket** | router only | Y | Y | Y | Y | Y |
-| **Retry / CircuitBreaker** | pure | Y | Y | Y | Y | Y |
-| **RateLimiter** | pure | Y | Y | Y | Y | Y |
+| **Result** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Option** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **pipe / flow** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Match** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Eq / Ord** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **State** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Lens / Prism / Traversal** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Record / List / NonEmptyList** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Schema / Codec** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **ErrType / Type** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Duration / Cron** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Task / Stream / Lazy** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Env / Channel / Cache** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Semaphore / Mutex** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Json** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Clone** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Crypto** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Url** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Encoding** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Compression** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Timer** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Client** | web (fetch) | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Path / Eol** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Platform** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Server.fetch** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Stream.fromReadable** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **File** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Command** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Os** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Process** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Config** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Logger** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Server.serve/.listen** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Program** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Dns** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Net** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **WebSocket** | router only | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Retry / CircuitBreaker** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **RateLimiter** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 
 **Legend:**
 - **pure**: No runtime APIs used. Pure TypeScript logic.
