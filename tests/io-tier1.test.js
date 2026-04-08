@@ -401,7 +401,7 @@ describe("Clone", () => {
     });
 
     it("returns Err(CloneError) for objects with function properties", () => {
-      const obj = { fn: () => {} };
+      const obj = { fn: () => undefined };
       const result = Clone.deep(obj);
       assert.equal(result.isErr, true);
       assert.equal(CloneError.is(result.error), true);
