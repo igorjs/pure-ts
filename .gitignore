@@ -20,3 +20,4 @@ coverage/
 *.swp
 *.swo
 Thumbs.db
+brain.db

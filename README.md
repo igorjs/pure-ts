@@ -4,7 +4,7 @@
 [![JSR](https://jsr.io/badges/@igorjs/pure-ts)](https://jsr.io/@igorjs/pure-ts)
 [![JSR Score](https://jsr.io/badges/@igorjs/pure-ts/score)](https://jsr.io/@igorjs/pure-ts)
 [![License](https://img.shields.io/npm/l/@igorjs/pure-ts)](https://github.com/igorjs/pure-ts/blob/main/LICENSE)
-[![Tests](https://img.shields.io/badge/tests-882_passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-890_passing-brightgreen)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 
 Functional application framework for TypeScript. Zero dependencies.
@@ -14,6 +14,8 @@ Errors are values, not exceptions. Data is immutable, enforced at runtime. Async
 ![Node.js](https://img.shields.io/badge/Node.js_22+-339933?logo=nodedotjs&logoColor=white)
 ![Deno](https://img.shields.io/badge/Deno_2+-000000?logo=deno&logoColor=white)
 ![Bun](https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white)
+![QuickJS](https://img.shields.io/badge/QuickJS-F7DF1E?logo=javascript&logoColor=black)
+![LLRT](https://img.shields.io/badge/LLRT-FF9900?logo=amazonaws&logoColor=white)
 ![Cloudflare Workers](https://img.shields.io/badge/CF_Workers-F38020?logo=cloudflare&logoColor=white)
 ![Browser](https://img.shields.io/badge/Browser-4285F4?logo=googlechrome&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript_5.5+-3178C6?logo=typescript&logoColor=white)
@@ -62,7 +64,7 @@ Requires Node >= 22 (LTS). Compatible with TypeScript >= 5.5 and TypeScript 7 (`
 | **Types** | `Type` (nominal branding), `ErrType`, `Duration`, `Cron` |
 | **Async** | `Task`, `Stream`, `Lazy`, `Env`, `Timer`, `Retry`, `CircuitBreaker`, `Semaphore`, `Mutex`, `RateLimiter`, `Cache`, `Channel` |
 | **IO** | `Json`, `File`, `Crypto`, `Url`, `Encoding`, `Clone`, `Compression`, `Client`, `WebSocket`, `Command`, `Dns`, `Net` |
-| **Runtime** | `Server`, `Program`, `Logger`, `Config`, `Path`, `Eol`, `Platform`, `Os`, `Process`, adapters for Node, Deno, Bun, Lambda |
+| **Runtime** | `Server`, `Program`, `Logger`, `Config`, `Path`, `Eol`, `Platform`, `Os`, `Process`, adapters for Node, Deno, Bun, QuickJS, LLRT, Lambda |
 
 ## Why
 
@@ -267,7 +269,7 @@ Json.parse('{"name":"Alice"}')              // Ok({ name: 'Alice' })
 Json.parse('not json')                      // Err(JsonError('...'))
 Json.stringify(data)                        // Ok('{"name":"Alice"}')
 
-// File: multi-runtime (Deno + Node + Bun), returns Task
+// File: multi-runtime (Deno + Node + Bun + QuickJS), returns Task
 const content = await File.read('./config.json').run()
 await File.write('./out.json', data).run()
 await File.stat('./file.txt').run()         // Ok({ isFile, isDirectory, size })
@@ -317,7 +319,7 @@ if (result.isOk) {
 ```ts
 const result = await Command.exec('git', ['status']).run()
 // Ok({ exitCode: 0, stdout: '...', stderr: '' })
-// Works across Node, Deno, and Bun
+// Works across Node, Deno, Bun, and QuickJS
 ```
 
 ### Timers
@@ -727,56 +729,63 @@ Extends List. `first()`, `last()`, `head` return `T` directly (not `Option`).
 
 ## Runtime compatibility
 
-Works with: &nbsp; ![Node.js](https://img.shields.io/badge/Node.js_22+-339933?logo=nodedotjs&logoColor=white) &nbsp; ![Deno](https://img.shields.io/badge/Deno_2+-000000?logo=deno&logoColor=white) &nbsp; ![Bun](https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white) &nbsp; ![Cloudflare Workers](https://img.shields.io/badge/CF_Workers-F38020?logo=cloudflare&logoColor=white) &nbsp; ![Browser](https://img.shields.io/badge/Browser-4285F4?logo=googlechrome&logoColor=white)
+Works with: &nbsp; ![Node.js](https://img.shields.io/badge/Node.js_22+-339933?logo=nodedotjs&logoColor=white) &nbsp; ![Deno](https://img.shields.io/badge/Deno_2+-000000?logo=deno&logoColor=white) &nbsp; ![Bun](https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white) &nbsp; ![QuickJS](https://img.shields.io/badge/QuickJS-F7DF1E?logo=javascript&logoColor=black) &nbsp; ![LLRT](https://img.shields.io/badge/LLRT-FF9900?logo=amazonaws&logoColor=white) &nbsp; ![Cloudflare Workers](https://img.shields.io/badge/CF_Workers-F38020?logo=cloudflare&logoColor=white) &nbsp; ![Browser](https://img.shields.io/badge/Browser-4285F4?logo=googlechrome&logoColor=white)
 
-Every module is classified by its runtime requirements. Web standard modules work everywhere. Multi-runtime modules detect Deno/Bun/Node via `globalThis`. Server-only modules gracefully return `Err` or `None` in unsupported runtimes.
+Every module is classified by its runtime requirements. Web standard modules work everywhere. Multi-runtime modules detect Deno/Bun/QuickJS/Node via `globalThis`. Server-only modules gracefully return `Err` or `None` in unsupported runtimes. LLRT uses the Node.js code path.
 
-| Module | API | <img src="https://img.shields.io/badge/-339933?logo=nodedotjs&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-000000?logo=deno&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-000000?logo=bun&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-F38020?logo=cloudflare&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-4285F4?logo=googlechrome&logoColor=white" height="14"> |
-|--------|-----|:---:|:---:|:---:|:---:|:---:|
-| **Result** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Option** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **pipe / flow** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Match** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Eq / Ord** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **State** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Lens / Prism / Traversal** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Record / List / NonEmptyList** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Schema / Codec** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **ErrType / Type** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Duration / Cron** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Task / Stream / Lazy** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Env / Channel / Cache** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Semaphore / Mutex** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Json** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Clone** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Crypto** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Url** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Encoding** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Compression** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Timer** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Client** | web (fetch) | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Path / Eol** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Platform** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Server.fetch** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Stream.fromReadable** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **File** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
-| **Command** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
-| **Os** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
-| **Process** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
-| **Config** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
-| **Logger** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
-| **Server.serve/.listen** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
-| **Program** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
-| **Dns** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
-| **Net** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
-| **WebSocket** | router only | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **Retry / CircuitBreaker** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **RateLimiter** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| Module | API | <img src="https://img.shields.io/badge/-339933?logo=nodedotjs&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-000000?logo=deno&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-000000?logo=bun&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-F7DF1E?logo=javascript&logoColor=black" height="14"> | <img src="https://img.shields.io/badge/-FF9900?logo=amazonaws&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-F38020?logo=cloudflare&logoColor=white" height="14"> | <img src="https://img.shields.io/badge/-4285F4?logo=googlechrome&logoColor=white" height="14"> |
+|--------|-----|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Result** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Option** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **pipe / flow** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Match** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Eq / Ord** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **State** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Lens / Prism / Traversal** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Record / List / NonEmptyList** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Schema / Codec** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **ErrType / Type** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Duration / Cron** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Task / Stream / Lazy** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Env / Channel / Cache** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Semaphore / Mutex** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Json** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Clone** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Crypto** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Url** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Encoding** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Compression** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Timer** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Client** | web (fetch) | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Path / Eol** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Platform** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Server.fetch** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Stream.fromReadable** | web | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **File** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Command** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :warning: | :white_check_mark: | :x: | :x: |
+| **Os** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :warning: | :white_check_mark: | :x: | :x: |
+| **Process** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Config** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :white_check_mark: | :x: | :x: |
+| **Logger** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: |
+| **Server.serve/.listen** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: | :x: | :x: |
+| **Program** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :x: | :x: | :x: |
+| **Dns** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :white_check_mark: | :x: | :x: |
+| **Net** | multi-runtime | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :white_check_mark: | :x: | :x: |
+| **WebSocket** | router only | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **Retry / CircuitBreaker** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| **RateLimiter** | pure | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 
 **Legend:**
 - **pure**: No runtime APIs used. Pure TypeScript logic.
 - **web**: Uses web standard APIs (`crypto.subtle`, `URL`, `TextEncoder`, `CompressionStream`, `fetch`, `setTimeout`, `performance`). Available in all modern runtimes.
-- **multi-runtime**: Detects Deno/Bun/Node via `globalThis` and dispatches to the appropriate API. Returns `Err`/`None` in runtimes without the capability.
+- **multi-runtime**: Detects Deno/Bun/QuickJS/Node via `globalThis` and dispatches to the appropriate API. Returns `Err`/`None` in runtimes without the capability.
+- :white_check_mark: = full support, :warning: = partial (see notes below), :x: = not available
+
+**QuickJS notes:**
+- **Command**: No timeout support. The `env` option is ignored.
+- **Os**: Limited info. Most fields return `None` or `"unknown"`.
+- **Crypto/Compression/Client/Server/Stream.fromReadable**: Require web standard APIs not available in base QuickJS builds.
+- **LLRT** uses the Node.js code path for all modules (it implements `node:fs`, `node:child_process`, etc.).
 
 ## Performance
 
