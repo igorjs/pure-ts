@@ -5,11 +5,10 @@
  *
  * **Why wrap process globals?**
  * Each runtime exposes process info differently: Node/Bun use `process`,
- * Deno uses `Deno`, and QuickJS uses `scriptArgs` plus `std`/`os` modules.
- * This module provides a unified API that detects the runtime via
- * globalThis and returns Result/Option instead of throwing. The parseArgs
- * function provides a zero-dependency argument parser validated against a
- * Schema shape.
+ * Deno uses `Deno`. This module provides a unified API that detects the
+ * runtime via globalThis and returns Result/Option instead of throwing.
+ * The parseArgs function provides a zero-dependency argument parser
+ * validated against a Schema shape.
  */
 
 import { None, type Option, Some } from "../core/option.js";
@@ -43,55 +42,12 @@ interface DenoGlobal {
   exit(code?: number): never;
 }
 
-/** Structural type for the QuickJS `qjs:os` module (process-related subset). */
-interface QjsOs {
-  getcwd(): string;
-  getpid(): number;
-}
-
-/** Structural type for the QuickJS `qjs:std` module (process-related subset). */
-interface QjsStd {
-  getenv(name: string): string | undefined;
-  exit(code: number): void;
-}
-
 // -- Runtime detection helpers -----------------------------------------------
 
 const getNodeProcess = (): NodeProcess | undefined =>
   (globalThis as unknown as { process?: NodeProcess }).process;
 
 const getDeno = (): DenoGlobal | undefined => (globalThis as unknown as { Deno?: DenoGlobal }).Deno;
-
-// Why: QuickJS detection mirrors the caching pattern from io/file.ts.
-// The `scriptArgs` global is the cheapest feature-test for QuickJS.
-// Module loading uses Function() to avoid bundler/static-analysis issues.
-let qjsModules: { std: QjsStd; os: QjsOs } | null | undefined;
-const getQjs = (): { std: QjsStd; os: QjsOs } | null => {
-  if (qjsModules !== undefined) {
-    return qjsModules;
-  }
-  const sa = (globalThis as unknown as { scriptArgs?: unknown }).scriptArgs;
-  if (sa === undefined) {
-    qjsModules = null;
-    return null;
-  }
-  try {
-    const os = Function(
-      'try{return require("qjs:os")}catch{try{return require("os")}catch{return null}}',
-    )() as QjsOs | null;
-    const std = Function(
-      'try{return require("qjs:std")}catch{try{return require("std")}catch{return null}}',
-    )() as QjsStd | null;
-    qjsModules = os !== null && std !== null ? { std, os } : null;
-  } catch {
-    qjsModules = null;
-  }
-  return qjsModules;
-};
-
-/** Get the QuickJS scriptArgs global (CLI arguments including script name). */
-const getScriptArgs = (): readonly string[] | undefined =>
-  (globalThis as unknown as { scriptArgs?: readonly string[] }).scriptArgs;
 
 // -- Arg parsing helpers -----------------------------------------------------
 
@@ -204,10 +160,6 @@ export const Process: {
     if (deno !== undefined) {
       return tryCwd(() => deno.cwd());
     }
-    const qjs = getQjs();
-    if (qjs !== null) {
-      return tryCwd(() => qjs.os.getcwd());
-    }
     const proc = getNodeProcess();
     if (proc !== undefined) {
       return tryCwd(() => proc.cwd());
@@ -219,10 +171,6 @@ export const Process: {
     const deno = getDeno();
     if (deno !== undefined) {
       return Some(deno.pid);
-    }
-    const qjs = getQjs();
-    if (qjs !== null) {
-      return Some(qjs.os.getpid());
     }
     const proc = getNodeProcess();
     if (proc !== undefined) {
@@ -240,7 +188,7 @@ export const Process: {
         return None;
       }
     }
-    // Deno and QuickJS do not expose process uptime
+    // Deno does not expose process uptime
     return None;
   },
 
@@ -258,7 +206,6 @@ export const Process: {
         return None;
       }
     }
-    // Deno and QuickJS do not expose heap/RSS memory usage
     return None;
   },
 
@@ -266,10 +213,6 @@ export const Process: {
     const deno = getDeno();
     if (deno !== undefined) {
       return deno.args;
-    }
-    const sa = getScriptArgs();
-    if (sa !== undefined) {
-      return sa;
     }
     const proc = getNodeProcess();
     if (proc !== undefined) {
@@ -317,13 +260,6 @@ export const Process: {
     const deno = getDeno();
     if (deno !== undefined) {
       return deno.exit(code);
-    }
-    const qjs = getQjs();
-    if (qjs !== null) {
-      qjs.std.exit(code ?? 0);
-      // Why: std.exit terminates the process but TS cannot verify that.
-      // The throw below is unreachable; it satisfies the `never` return type.
-      throw new Error("unreachable");
     }
     const proc = getNodeProcess();
     if (proc !== undefined) {

@@ -38,7 +38,7 @@
  *   Logger / Config                   - structured logging and env validation
  *   Path / Eol / Platform             - cross-platform IO
  *   Os / Process                      - cross-runtime OS and process info
- *   node / deno / bun / lambda        - runtime adapters (LLRT uses node path, QuickJS uses qjs:std/os)
+ *   node / deno / bun / lambda        - runtime adapters
  */
 
 import type { Option, OptionMatcher } from "./core/option.js";

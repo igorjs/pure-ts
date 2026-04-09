@@ -8,10 +8,10 @@
  * invalid paths. Wrapping in Task makes failures values, not exceptions.
  *
  * **Multi-runtime strategy:**
- * Detects Deno, then QuickJS, then Node/Bun at runtime. Deno uses its native
- * async API. QuickJS uses synchronous std/os modules wrapped in Promises.
- * Node and Bun share node:fs/promises. All runtime access is structural:
- * no type declarations imported.
+ * Detects Deno, then Node/Bun at runtime. Deno uses its native async API
+ * (Deno.readTextFile, etc.). Node and Bun share node:fs/promises (Bun
+ * implements it natively). All runtime access is structural: no type
+ * declarations imported.
  */
 
 import type { Result } from "../core/result.js";
@@ -89,62 +89,11 @@ interface NodeFs {
   mkdtemp(prefix: string): Promise<string>;
 }
 
-/** QuickJS std module (structural, synchronous). */
-interface QjsStd {
-  loadFile(path: string): string | null;
-  open(
-    path: string,
-    flags: string,
-  ): { write(buf: ArrayBuffer, offset: number, length: number): number; close(): void } | null;
-  getenv(name: string): string | undefined;
-}
-
-/** QuickJS os module (structural, synchronous). */
-interface QjsOs {
-  stat(path: string): [obj: { mode: number; size: number; mtime: number }, err: number];
-  lstat(path: string): [obj: { mode: number; size: number; mtime: number }, err: number];
-  mkdir(path: string, mode?: number): number;
-  remove(path: string): number;
-  readdir(path: string): [names: string[], err: number];
-  rename(oldPath: string, newPath: string): number;
-  getcwd(): string;
-}
-
-// ── POSIX mode constants ────────────────────────────────────────────────────
-
-const S_IFMT = 0o170000;
-const S_IFDIR = 0o040000;
-const S_IFREG = 0o100000;
-
 // ── Runtime detection ───────────────────────────────────────────────────────
 
 const getDenoFs = (): DenoFs | null => {
   const deno = (globalThis as unknown as { Deno?: DenoFs }).Deno;
   return deno?.readTextFile !== undefined ? deno : null;
-};
-
-let qjsModules: { std: QjsStd; os: QjsOs } | null | undefined;
-const getQjs = (): { std: QjsStd; os: QjsOs } | null => {
-  if (qjsModules !== undefined) {
-    return qjsModules;
-  }
-  const sa = (globalThis as unknown as { scriptArgs?: unknown }).scriptArgs;
-  if (sa === undefined) {
-    qjsModules = null;
-    return null;
-  }
-  try {
-    const std = Function(
-      'try{return globalThis[Symbol.for("qjs:std")]??require("qjs:std")}catch{try{return require("std")}catch{return null}}',
-    )() as QjsStd | null;
-    const os = Function(
-      'try{return globalThis[Symbol.for("qjs:os")]??require("qjs:os")}catch{try{return require("os")}catch{return null}}',
-    )() as QjsOs | null;
-    qjsModules = std !== null && os !== null ? { std, os } : null;
-  } catch {
-    qjsModules = null;
-  }
-  return qjsModules;
 };
 
 let nodeFs: NodeFs | null | undefined;
@@ -161,76 +110,6 @@ const getNodeFs = async (): Promise<NodeFs | null> => {
   }
 };
 
-// ── QuickJS helpers ─────────────────────────────────────────────────────────
-
-const qjsWriteText = (std: QjsStd, path: string, content: string, flags: string): void => {
-  const encoder = new TextEncoder();
-  const buf = encoder.encode(content);
-  const f = std.open(path, flags);
-  if (f === null) {
-    throw new Error(`Failed to open file: ${path}`);
-  }
-  try {
-    f.write(buf.buffer as ArrayBuffer, buf.byteOffset, buf.byteLength);
-  } finally {
-    f.close();
-  }
-};
-
-const qjsMakeTempDir = (qjs: { std: QjsStd; os: QjsOs }, prefix: string | undefined): string => {
-  const tmp = qjs.std.getenv("TMPDIR") ?? qjs.std.getenv("TMP") ?? "/tmp";
-  const name =
-    (prefix ?? "pure-ts-") + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  const dir = `${tmp}/${name}`;
-  const ret = qjs.os.mkdir(dir);
-  if (ret < 0) {
-    throw new Error(`mkdir failed: errno ${ret}`);
-  }
-  return dir;
-};
-
-const qjsMkdirRecursive = (os: QjsOs, path: string): void => {
-  const sep = path.includes("/") ? "/" : "\\";
-  const segments = path.split(sep).filter(s => s.length > 0);
-  let current = path.startsWith(sep) ? sep : "";
-  for (const segment of segments) {
-    current = current.length === 0 ? segment : current + sep + segment;
-    const ret = os.mkdir(current);
-    // 0 = success, negative = errno. -17 (EEXIST) is fine for recursive mkdir
-    if (ret < 0 && ret !== -17) {
-      throw new Error(`mkdir failed for ${current}: errno ${ret}`);
-    }
-  }
-};
-
-const qjsRemoveDirRecursive = (qjs: { std: QjsStd; os: QjsOs }, path: string): void => {
-  const [entries, err] = qjs.os.readdir(path);
-  if (err !== 0) {
-    throw new Error(`readdir failed for ${path}: errno ${err}`);
-  }
-  const sep = path.includes("/") ? "/" : "\\";
-  for (const name of entries) {
-    if (name === "." || name === "..") {
-      continue;
-    }
-    const full = path + sep + name;
-    const [stat, statErr] = qjs.os.stat(full);
-    if (statErr !== 0) {
-      continue;
-    }
-    if ((stat.mode & S_IFMT) === S_IFDIR) {
-      qjsRemoveDirRecursive(qjs, full);
-    } else {
-      qjs.os.remove(full);
-    }
-  }
-  // Remove the now-empty directory. QuickJS os.remove works for empty dirs too.
-  const ret = qjs.os.remove(path);
-  if (ret < 0) {
-    throw new Error(`remove failed for ${path}: errno ${ret}`);
-  }
-};
-
 // ── Unified operations ──────────────────────────────────────────────────────
 
 const readFile = async (path: string): Promise<Result<string, ErrType<"FileError">>> => {
@@ -238,18 +117,6 @@ const readFile = async (path: string): Promise<Result<string, ErrType<"FileError
   if (deno !== null) {
     try {
       return Ok(Eol.normalize(await deno.readTextFile(path)));
-    } catch (e) {
-      return Err(fileErr(e, { path }));
-    }
-  }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      const content = qjs.std.loadFile(path);
-      if (content === null) {
-        return Err(FileError(`File not found: ${path}`, { path }));
-      }
-      return Ok(Eol.normalize(content));
     } catch (e) {
       return Err(fileErr(e, { path }));
     }
@@ -273,15 +140,6 @@ const writeFile = async (
   if (deno !== null) {
     try {
       await deno.writeTextFile(path, content);
-      return Ok(undefined);
-    } catch (e) {
-      return Err(fileErr(e, { path }));
-    }
-  }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      qjsWriteText(qjs.std, path, content, "w");
       return Ok(undefined);
     } catch (e) {
       return Err(fileErr(e, { path }));
@@ -312,15 +170,6 @@ const appendFile = async (
       return Err(fileErr(e, { path }));
     }
   }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      qjsWriteText(qjs.std, path, content, "a");
-      return Ok(undefined);
-    } catch (e) {
-      return Err(fileErr(e, { path }));
-    }
-  }
   const node = await getNodeFs();
   if (node !== null) {
     try {
@@ -343,18 +192,6 @@ const fileExists = async (path: string): Promise<Result<boolean, ErrType<"FileEr
       return Ok(false);
     }
   }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      const [stat, err] = qjs.os.stat(path);
-      if (err !== 0) {
-        return Ok(false);
-      }
-      return Ok((stat.mode & S_IFMT) === S_IFREG);
-    } catch {
-      return Ok(false);
-    }
-  }
   const node = await getNodeFs();
   if (node !== null) {
     try {
@@ -372,15 +209,6 @@ const makeDir = async (path: string): Promise<Result<void, ErrType<"FileError">>
   if (deno !== null) {
     try {
       await deno.mkdir(path, { recursive: true });
-      return Ok(undefined);
-    } catch (e) {
-      return Err(fileErr(e, { path }));
-    }
-  }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      qjsMkdirRecursive(qjs.os, path);
       return Ok(undefined);
     } catch (e) {
       return Err(fileErr(e, { path }));
@@ -408,18 +236,6 @@ const removeFile = async (path: string): Promise<Result<void, ErrType<"FileError
       return Err(fileErr(e, { path }));
     }
   }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      const ret = qjs.os.remove(path);
-      if (ret < 0) {
-        return Err(FileError(`remove failed: errno ${ret}`, { path }));
-      }
-      return Ok(undefined);
-    } catch (e) {
-      return Err(fileErr(e, { path }));
-    }
-  }
   const node = await getNodeFs();
   if (node !== null) {
     try {
@@ -437,15 +253,6 @@ const removeDir = async (path: string): Promise<Result<void, ErrType<"FileError"
   if (deno !== null) {
     try {
       await deno.remove(path, { recursive: true });
-      return Ok(undefined);
-    } catch (e) {
-      return Err(fileErr(e, { path }));
-    }
-  }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      qjsRemoveDirRecursive(qjs, path);
       return Ok(undefined);
     } catch (e) {
       return Err(fileErr(e, { path }));
@@ -476,18 +283,6 @@ const listDir = async (path: string): Promise<Result<readonly string[], ErrType<
       return Err(fileErr(e, { path }));
     }
   }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      const [names, err] = qjs.os.readdir(path);
-      if (err !== 0) {
-        return Err(FileError(`readdir failed: errno ${err}`, { path }));
-      }
-      return Ok(names.filter(n => n !== "." && n !== ".."));
-    } catch (e) {
-      return Err(fileErr(e, { path }));
-    }
-  }
   const node = await getNodeFs();
   if (node !== null) {
     try {
@@ -509,23 +304,6 @@ const statFile = async (path: string): Promise<Result<FileStat, ErrType<"FileErr
         isDirectory: s.isDirectory,
         size: s.size,
         mtime: s.mtime ?? undefined,
-      });
-    } catch (e) {
-      return Err(fileErr(e, { path }));
-    }
-  }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      const [stat, err] = qjs.os.stat(path);
-      if (err !== 0) {
-        return Err(FileError(`stat failed: errno ${err}`, { path }));
-      }
-      return Ok({
-        isFile: (stat.mode & S_IFMT) === S_IFREG,
-        isDirectory: (stat.mode & S_IFMT) === S_IFDIR,
-        size: stat.size,
-        mtime: new Date(stat.mtime * 1000),
       });
     } catch (e) {
       return Err(fileErr(e, { path }));
@@ -558,20 +336,6 @@ const copyFile = async (src: string, dest: string): Promise<Result<void, ErrType
       return Err(fileErr(e, { src, dest }));
     }
   }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      // QuickJS has no native copy; read then write
-      const content = qjs.std.loadFile(src);
-      if (content === null) {
-        return Err(FileError(`File not found: ${src}`, { src, dest }));
-      }
-      qjsWriteText(qjs.std, dest, content, "w");
-      return Ok(undefined);
-    } catch (e) {
-      return Err(fileErr(e, { src, dest }));
-    }
-  }
   const node = await getNodeFs();
   if (node !== null) {
     try {
@@ -592,18 +356,6 @@ const renameFile = async (
   if (deno !== null) {
     try {
       await deno.rename(oldPath, newPath);
-      return Ok(undefined);
-    } catch (e) {
-      return Err(fileErr(e, { oldPath, newPath }));
-    }
-  }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      const ret = qjs.os.rename(oldPath, newPath);
-      if (ret < 0) {
-        return Err(FileError(`rename failed: errno ${ret}`, { oldPath, newPath }));
-      }
       return Ok(undefined);
     } catch (e) {
       return Err(fileErr(e, { oldPath, newPath }));
@@ -634,14 +386,6 @@ const tempDir = async (prefix?: string): Promise<Result<string, ErrType<"FileErr
       return Err(fileErr(e));
     }
   }
-  const qjs = getQjs();
-  if (qjs !== null) {
-    try {
-      return Ok(qjsMakeTempDir(qjs, prefix));
-    } catch (e) {
-      return Err(fileErr(e));
-    }
-  }
   const node = await getNodeFs();
   if (node !== null) {
     try {
@@ -658,7 +402,7 @@ const tempDir = async (prefix?: string): Promise<Result<string, ErrType<"FileErr
 /**
  * Type-safe file system operations that return Task instead of throwing.
  *
- * Multi-runtime: detects Deno, QuickJS, then Node/Bun (node:fs/promises).
+ * Multi-runtime: detects Deno (native API), then Node/Bun (node:fs/promises).
  * Gracefully returns Err in runtimes without filesystem (Workers, browsers).
  *
  * @example

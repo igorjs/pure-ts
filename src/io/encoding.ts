@@ -25,22 +25,30 @@ export const EncodingError: ErrTypeConstructor<"EncodingError", string> = ErrTyp
 /** Hex lookup table for encoding. Pre-computed for performance. */
 const HEX_CHARS = "0123456789abcdef";
 
-/** Shared TextEncoder instance. */
-const encoder = new TextEncoder();
-
 /**
- * Create a TextDecoder with fatal error mode.
- * Why: the es2024 lib's TextDecoder constructor signature accepts only
- * a label, not options. Access the options form structurally.
+ * Lazy TextEncoder/TextDecoder accessors.
+ * Why: some runtimes (e.g. bare QuickJS) lack these globals. Initializing
+ * at module load would break the entire library import. Lazy access means
+ * the error only surfaces when Encoding is actually used.
  */
-const mkFatalDecoder = (): { decode(input: Uint8Array): string } => {
-  const Ctor = TextDecoder as unknown as {
-    new (label: string, options: { fatal: boolean }): { decode(input: Uint8Array): string };
-  };
-  return new Ctor("utf-8", { fatal: true });
+let _encoder: { encode(input: string): Uint8Array } | undefined;
+const encoder = (): { encode(input: string): Uint8Array } => {
+  if (_encoder === undefined) {
+    _encoder = new TextEncoder();
+  }
+  return _encoder;
 };
 
-const decoder = mkFatalDecoder();
+let _decoder: { decode(input: Uint8Array): string } | undefined;
+const decoder = (): { decode(input: Uint8Array): string } => {
+  if (_decoder === undefined) {
+    const Ctor = TextDecoder as unknown as {
+      new (label: string, options: { fatal: boolean }): { decode(input: Uint8Array): string };
+    };
+    _decoder = new Ctor("utf-8", { fatal: true });
+  }
+  return _decoder;
+};
 
 // ── Encoding ────────────────────────────────────────────────────────────────
 
@@ -140,11 +148,11 @@ export const Encoding: {
   },
 
   utf8: {
-    encode: (str: string): Uint8Array => encoder.encode(str),
+    encode: (str: string): Uint8Array => encoder().encode(str),
 
     decode: (data: Uint8Array): Result<string, ErrType<"EncodingError">> => {
       try {
-        return Ok(decoder.decode(data));
+        return Ok(decoder().decode(data));
       } catch (e) {
         return Err(EncodingError(e instanceof Error ? e.message : String(e)));
       }

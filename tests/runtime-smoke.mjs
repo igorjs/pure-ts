@@ -19,7 +19,7 @@ let failed = 0;
 
 const assert = (condition, message) => {
   if (!condition) {
-    console.error(`  FAIL: ${message}`);
+    console.log(`  FAIL: ${message}`);
     failed++;
   } else {
     console.log(`  ok: ${message}`);
