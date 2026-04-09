@@ -46,6 +46,7 @@
     "test": "node --test tests/runtime.test.js tests/integration.test.js tests/program.test.js tests/server.test.js tests/core-new.test.js tests/async-new.test.js tests/data-new.test.js tests/io-tier1.test.js tests/tier2-runtime.test.js tests/remaining.test.js",
     "test:types": "tsgo -p tsconfig.test.json",
     "version": "node scripts/sync-pkg-version.mjs && git add jsr.json",
+    "release": "node scripts/release.mjs",
     "prepublishOnly": "pnpm run lint && pnpm run check && pnpm run build && pnpm test && pnpm run test:types"
   },
   "keywords": [
