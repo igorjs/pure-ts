@@ -38,7 +38,7 @@
  *   Logger / Config                   - structured logging and env validation
  *   Path / Eol / Platform             - cross-platform IO
  *   Os / Process                      - cross-runtime OS and process info
- *   node / deno / bun / lambda        - runtime adapters
+ *   node / deno / bun / lambda        - runtime adapters (LLRT uses node path, QuickJS uses qjs:std/os)
  */
 
 import type { Option, OptionMatcher } from "./core/option.js";
@@ -114,7 +114,7 @@ export { Compression, CompressionError } from "./io/compression.js";
 export { Crypto, CryptoError } from "./io/crypto.js";
 export { Dns, DnsError, type DnsRecord } from "./io/dns.js";
 export { Encoding, EncodingError } from "./io/encoding.js";
-export { File, FileError } from "./io/file.js";
+export { File, FileError, type FileStat } from "./io/file.js";
 export { Json, JsonError } from "./io/json.js";
 export { Net, NetError, type TcpConnection } from "./io/net.js";
 export { Command, CommandError, type CommandOptions, type CommandResult } from "./io/subprocess.js";

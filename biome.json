@@ -150,6 +150,16 @@
       }
     },
     {
+      "includes": ["tests/runtime-smoke.mjs"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["tests/types.test.ts"],
       "linter": {
         "rules": {

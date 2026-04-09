@@ -9,7 +9,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import nodeOs from "node:os";
 import nodePath from "node:path";
 import { describe, it } from "node:test";
@@ -448,6 +448,16 @@ describe("File", () => {
     assert.equal(readResult.value, "hello tier2");
   });
 
+  it("append then read: appends content to file", async () => {
+    const filePath = nodePath.join(tmpDir, "append.txt");
+    await File.write(filePath, "hello").run();
+    await File.append(filePath, " world").run();
+
+    const readResult = await File.read(filePath).run();
+    assert.equal(readResult.isOk, true);
+    assert.equal(readResult.value, "hello world");
+  });
+
   it("stat: returns isFile true for a file", async () => {
     const filePath = nodePath.join(tmpDir, "stat-file.txt");
     await writeFile(filePath, "stat test");
@@ -457,6 +467,8 @@ describe("File", () => {
     assert.equal(result.value.isFile, true);
     assert.equal(result.value.isDirectory, false);
     assert.ok(result.value.size > 0, `Expected file size > 0, got ${result.value.size}`);
+    assert.ok(result.value.mtime instanceof Date, "Expected mtime to be a Date");
+    assert.ok(result.value.mtime.getTime() > 0, "Expected mtime to be a valid date");
   });
 
   it("stat: returns isDirectory true for a directory", async () => {
@@ -498,6 +510,21 @@ describe("File", () => {
     // New file should exist with correct content
     const content = await readFile(newPath, "utf-8");
     assert.equal(content, "rename me");
+  });
+
+  it("removeDir: recursively removes a directory and its contents", async () => {
+    const dir = nodePath.join(tmpDir, "remove-dir-test");
+    const nested = nodePath.join(dir, "nested");
+    await mkdir(nested, { recursive: true });
+    await writeFile(nodePath.join(dir, "a.txt"), "a");
+    await writeFile(nodePath.join(nested, "b.txt"), "b");
+
+    const result = await File.removeDir(dir).run();
+    assert.equal(result.isOk, true);
+
+    // Verify directory no longer exists
+    const exists = await File.stat(dir).run();
+    assert.equal(exists.isErr, true);
   });
 
   it("tempDir: creates a directory that exists", async () => {
