@@ -578,6 +578,57 @@ describe("Schema refinements", () => {
     });
   });
 
+  describe("date", () => {
+    it("valid ISO string parses to Date instance", () => {
+      const result = Schema.date.parse("2024-01-15T10:30:00.000Z");
+      assert.equal(result.isOk, true);
+      assert.ok(result.value instanceof Date);
+      assert.equal(result.value.toISOString(), "2024-01-15T10:30:00.000Z");
+    });
+
+    it("date-only string parses to Date", () => {
+      const result = Schema.date.parse("2024-06-01");
+      assert.equal(result.isOk, true);
+      assert.ok(result.value instanceof Date);
+    });
+
+    it("invalid date string returns Err", () => {
+      assert.equal(Schema.date.parse("not-a-date").isErr, true);
+    });
+
+    it("non-string input returns Err", () => {
+      assert.equal(Schema.date.parse(42).isErr, true);
+    });
+  });
+
+  describe("enum", () => {
+    it("matching value returns Ok", () => {
+      const status = Schema.enum(["active", "inactive", "pending"]);
+      assert.equal(status.parse("active").isOk, true);
+      assert.equal(status.parse("active").value, "active");
+    });
+
+    it("non-matching value returns Err", () => {
+      const status = Schema.enum(["active", "inactive"]);
+      assert.equal(status.parse("deleted").isErr, true);
+    });
+
+    it("works with numbers", () => {
+      const priority = Schema.enum([1, 2, 3]);
+      assert.equal(priority.parse(2).isOk, true);
+      assert.equal(priority.parse(2).value, 2);
+      assert.equal(priority.parse(4).isErr, true);
+    });
+
+    it("works with mixed types", () => {
+      const mixed = Schema.enum(["yes", "no", true, false, 0, 1]);
+      assert.equal(mixed.parse("yes").isOk, true);
+      assert.equal(mixed.parse(true).isOk, true);
+      assert.equal(mixed.parse(0).isOk, true);
+      assert.equal(mixed.parse("maybe").isErr, true);
+    });
+  });
+
   describe("nonEmpty", () => {
     it("non-empty string passes", () => {
       assert.equal(Schema.nonEmpty.parse("hello").isOk, true);
