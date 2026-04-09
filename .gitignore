@@ -21,3 +21,5 @@ coverage/
 *.swo
 Thumbs.db
 brain.db
+brain.db-shm
+brain.db-wal
