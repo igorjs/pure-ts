@@ -355,25 +355,61 @@ const traverseResults = <A, T, E>(
   return Ok(values);
 };
 
+/**
+ * Convert a nullable value to a Result.
+ *
+ * Returns Ok(value) for non-null/undefined, Err(onNull()) otherwise.
+ * Falsy values like 0, '', and false produce Ok.
+ */
+const fromNullable = <T, E>(value: T | null | undefined, onNull: () => E): Result<T, E> =>
+  value === null || value === undefined ? Err(onNull()) : Ok(value);
+
+/**
+ * Separate an array of Results into Ok values and Err values.
+ *
+ * Unlike collect/sequence which short-circuit on the first Err,
+ * partition processes every element and returns both groups.
+ */
+const partitionResults = <T, E>(
+  results: readonly Result<T, E>[],
+): { readonly ok: readonly T[]; readonly err: readonly E[] } => {
+  const ok: T[] = [];
+  const err: E[] = [];
+  for (const r of results) {
+    if (r.isOk) {
+      ok.push(r.value);
+    } else {
+      err.push(r.error);
+    }
+  }
+  return { ok, err };
+};
+
 export const Result: {
   readonly Ok: <T>(value: T) => Result<T, never>;
   readonly Err: <E>(error: E) => Result<never, E>;
   readonly tryCatch: <T, E = unknown>(fn: () => T, onError?: (e: unknown) => E) => Result<T, E>;
+  readonly fromNullable: <T, E>(value: T | null | undefined, onNull: () => E) => Result<T, E>;
   readonly collect: <T, E>(results: readonly Result<T, E>[]) => Result<readonly T[], E>;
   readonly sequence: <T, E>(results: readonly Result<T, E>[]) => Result<readonly T[], E>;
   readonly traverse: <A, T, E>(
     items: readonly A[],
     fn: (item: A) => Result<T, E>,
   ) => Result<readonly T[], E>;
+  readonly partition: <T, E>(
+    results: readonly Result<T, E>[],
+  ) => { readonly ok: readonly T[]; readonly err: readonly E[] };
   readonly match: <T, E, U>(result: Result<T, E>, matcher: ResultMatcher<T, E, U>) => U;
   readonly is: (value: unknown) => value is Result<unknown, unknown>;
 } = {
   Ok,
   Err,
   tryCatch,
+  fromNullable,
   collect: collectResults,
   sequence: collectResults,
   traverse: traverseResults,
+  partition: partitionResults,
   match: <T, E, U>(result: Result<T, E>, matcher: ResultMatcher<T, E, U>): U =>
     result.match(matcher),
   is: (value): value is Result<unknown, unknown> =>

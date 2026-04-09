@@ -298,6 +298,27 @@ const traverseOptions = <A, T>(
   return Some(values);
 };
 
+/**
+ * Separate an array of Options into present values and a count of absent ones.
+ *
+ * Unlike collect/sequence which short-circuit on the first None,
+ * partition processes every element.
+ */
+const partitionOptions = <T>(
+  options: readonly Option<T>[],
+): { readonly some: readonly T[]; readonly none: number } => {
+  const some: T[] = [];
+  let none = 0;
+  for (const o of options) {
+    if (o.isSome) {
+      some.push(o.value);
+    } else {
+      none++;
+    }
+  }
+  return { some, none };
+};
+
 export const Option: {
   readonly Some: <T>(value: T) => Option<T>;
   readonly None: Option<never>;
@@ -308,6 +329,10 @@ export const Option: {
     items: readonly A[],
     fn: (item: A) => Option<T>,
   ) => Option<readonly T[]>;
+  readonly partition: <T>(options: readonly Option<T>[]) => {
+    readonly some: readonly T[];
+    readonly none: number;
+  };
   readonly match: <T, U>(option: Option<T>, matcher: OptionMatcher<T, U>) => U;
   readonly is: (value: unknown) => value is Option<unknown>;
 } = {
@@ -317,6 +342,7 @@ export const Option: {
   collect: collectOptions,
   sequence: collectOptions,
   traverse: traverseOptions,
+  partition: partitionOptions,
   match: <T, U>(option: Option<T>, matcher: OptionMatcher<T, U>): U => option.match(matcher),
   is: (value): value is Option<unknown> => value instanceof SomeImpl || value instanceof NoneImpl,
 };
