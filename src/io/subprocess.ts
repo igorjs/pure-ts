@@ -3,7 +3,7 @@
  *
  * Cross-runtime subprocess execution returning Task instead of throwing.
  *
- * **Why wrap child_process / Deno.Command / Bun.spawn / qjs:os?**
+ * **Why wrap child_process / Deno.Command / Bun.spawn?**
  * Each runtime has its own subprocess API with different shapes, error
  * semantics, and output types. This module detects the runtime via
  * globalThis and dispatches to the correct API, returning a unified
@@ -11,9 +11,6 @@
  * only spawn failures (command not found, timeout, permission denied)
  * produce Err(CommandError).
  *
- * **QuickJS limitations:**
- * - Timeout is not supported (returns Err immediately).
- * - The `env` option is ignored (QuickJS `os.exec` has no env parameter).
  */
 
 import type { Result } from "../core/result.js";
@@ -129,25 +126,6 @@ interface NodeReadable {
   on(event: "data", cb: (chunk: { toString(): string }) => void): NodeReadable;
 }
 
-/** Structural type for the QuickJS `qjs:os` module. */
-interface QjsOs {
-  exec(
-    args: readonly string[],
-    options?: {
-      block?: boolean;
-      stdout?: number;
-      stderr?: number;
-      stdin?: number;
-      cwd?: string;
-    },
-  ): number;
-  pipe(): readonly [number, number] | null;
-  read(fd: number, buf: Uint8Array, offset: number, length: number): number;
-  write(fd: number, buf: Uint8Array, offset: number, length: number): number;
-  close(fd: number): void;
-  waitpid(pid: number, flags: number): readonly [number, number];
-}
-
 // -- Runtime detection -------------------------------------------------------
 
 /** Structural type for Deno global with Command constructor. */
@@ -166,47 +144,6 @@ interface BunGlobal {
     opts?: { cwd?: string; env?: Record<string, string>; stdin?: { readonly size: number } },
   ): BunChild;
 }
-
-// -- QuickJS detection -------------------------------------------------------
-
-/**
- * Cached QuickJS `qjs:os` module reference.
- *
- * QuickJS exposes `scriptArgs` on globalThis. When detected, we dynamically
- * load the `qjs:os` module (falling back to `os` for older builds).
- * The result is cached so the require/detection only runs once.
- */
-let qjsOsCache: QjsOs | false | undefined;
-
-const getQjsOs = (): QjsOs | false => {
-  if (qjsOsCache !== undefined) {
-    return qjsOsCache;
-  }
-  const g = globalThis as unknown as { scriptArgs?: unknown };
-  if (g.scriptArgs === undefined) {
-    qjsOsCache = false;
-    return false;
-  }
-  try {
-    // QuickJS provides a global require for native modules
-    const req = (globalThis as unknown as { require?: (id: string) => unknown }).require;
-    if (req === undefined) {
-      qjsOsCache = false;
-      return false;
-    }
-    let os: QjsOs;
-    try {
-      os = req("qjs:os") as QjsOs;
-    } catch {
-      os = req("os") as QjsOs;
-    }
-    qjsOsCache = os;
-    return os;
-  } catch {
-    qjsOsCache = false;
-    return false;
-  }
-};
 
 // -- Helpers -----------------------------------------------------------------
 
@@ -383,120 +320,6 @@ const execBun = (
     }
   });
 
-/** Read all bytes from a QuickJS file descriptor and return as a string. */
-const qjsReadFd = (os: QjsOs, fd: number): string => {
-  const chunks: Uint8Array[] = [];
-  const buf = new Uint8Array(4096);
-  for (;;) {
-    const n = os.read(fd, buf, 0, buf.length);
-    if (n <= 0) {
-      break;
-    }
-    chunks.push(buf.slice(0, n));
-  }
-  os.close(fd);
-  if (chunks.length === 0) {
-    return "";
-  }
-  let totalLen = 0;
-  for (const c of chunks) {
-    totalLen += c.length;
-  }
-  const merged = new Uint8Array(totalLen);
-  let offset = 0;
-  for (const c of chunks) {
-    merged.set(c, offset);
-    offset += c.length;
-  }
-  return new TextDecoder().decode(merged);
-};
-
-/** Create a pipe, throwing on failure. */
-const qjsMakePipe = (os: QjsOs): readonly [number, number] => {
-  const p = os.pipe();
-  if (p === null) {
-    throw new Error("failed to create pipe");
-  }
-  return p;
-};
-
-/** Synchronous subprocess execution on QuickJS using pipes for I/O capture. */
-const qjsExecSync = (
-  os: QjsOs,
-  cmd: string,
-  args: readonly string[],
-  options: CommandOptions,
-): CommandResult => {
-  const [stdoutReadFd, stdoutWriteFd] = qjsMakePipe(os);
-  const [stderrReadFd, stderrWriteFd] = qjsMakePipe(os);
-
-  let stdinReadFd: number | undefined;
-  if (options.stdin !== undefined) {
-    const [readFd, writeFd] = qjsMakePipe(os);
-    stdinReadFd = readFd;
-    const buf = new TextEncoder().encode(options.stdin);
-    os.write(writeFd, buf, 0, buf.length);
-    os.close(writeFd);
-  }
-
-  const execOpts: {
-    block?: boolean;
-    stdout?: number;
-    stderr?: number;
-    stdin?: number;
-    cwd?: string;
-  } = { block: false, stdout: stdoutWriteFd, stderr: stderrWriteFd };
-  if (stdinReadFd !== undefined) {
-    execOpts.stdin = stdinReadFd;
-  }
-  if (options.cwd !== undefined) {
-    execOpts.cwd = options.cwd;
-  }
-
-  const pid = os.exec([cmd, ...args], execOpts);
-
-  os.close(stdoutWriteFd);
-  os.close(stderrWriteFd);
-  if (stdinReadFd !== undefined) {
-    os.close(stdinReadFd);
-  }
-
-  const stdout = qjsReadFd(os, stdoutReadFd);
-  const stderr = qjsReadFd(os, stderrReadFd);
-
-  const [, status] = os.waitpid(pid, 0);
-  const exitCode = status >> 8;
-
-  return { exitCode, stdout, stderr };
-};
-
-/**
- * Execute a subprocess using the QuickJS `qjs:os` module.
- *
- * All QuickJS subprocess operations are synchronous, so the implementation
- * wraps the entire sequence in a single Promise via mkTask.
- *
- * **Limitations:**
- * - Timeout is not supported: returns Err(CommandError) if timeout is specified.
- * - The `env` option is ignored: QuickJS `os.exec` does not support custom env.
- */
-const execQuickJs = (
-  os: QjsOs,
-  cmd: string,
-  args: readonly string[],
-  options: CommandOptions,
-): TaskLike<CommandResult, ErrType<"CommandError">> =>
-  mkTask(async () => {
-    try {
-      if (options.timeout !== undefined) {
-        return Err(CommandError("timeout not supported on QuickJS", { cmd, args }));
-      }
-      return Ok(qjsExecSync(os, cmd, args, options));
-    } catch (e) {
-      return Err(CommandError(e instanceof Error ? e.message : String(e), { cmd, args }));
-    }
-  });
-
 /** Resolve a Node execFile callback into a Result, detecting timeout via killed flag. */
 const resolveNodeExecResult = (
   error: Error | null,
@@ -591,7 +414,7 @@ const execNode = (
 /**
  * Cross-runtime subprocess execution.
  *
- * Detects the runtime (Deno, Bun, QuickJS, Node) via globalThis and
+ * Detects the runtime (Deno, Bun, Node) via globalThis and
  * dispatches to the appropriate subprocess API. Returns TaskLike so
  * execution is lazy until `.run()` is called.
  *
@@ -635,12 +458,6 @@ export const Command: {
     const bun = (globalThis as unknown as { Bun?: BunGlobal }).Bun;
     if (bun?.spawnSync !== undefined) {
       return execBun(bun, cmd, resolvedArgs, resolvedOptions);
-    }
-
-    // Check QuickJS (scriptArgs on globalThis, qjs:os module)
-    const qjsOs = getQjsOs();
-    if (qjsOs !== false) {
-      return execQuickJs(qjsOs, cmd, resolvedArgs, resolvedOptions);
     }
 
     // Fallback to Node.js child_process

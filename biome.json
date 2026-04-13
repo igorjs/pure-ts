@@ -150,7 +150,12 @@
       }
     },
     {
-      "includes": ["tests/runtime-smoke.mjs"],
+      "includes": [
+        "tests/runtime-smoke.mjs",
+        "tests/web-smoke.mjs",
+        "tests/workers/*.mjs",
+        "tests/browser/*.mjs"
+      ],
       "linter": {
         "rules": {
           "suspicious": {

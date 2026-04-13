@@ -39,47 +39,97 @@ jobs:
       - name: Type tests
         run: pnpm run test:types
 
-      - name: Smoke test (Node 22)
-        run: node tests/runtime-smoke.mjs
-
-  runtime-smoke:
+  smoke-node:
     needs: lint-and-test
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runtime: node-24
-            node-version: "24"
-            command: node tests/runtime-smoke.mjs
-
-          - runtime: deno
-            command: deno run --allow-all tests/runtime-smoke.mjs
-
-          - runtime: bun
-            command: bun tests/runtime-smoke.mjs
-
-    name: smoke / ${{ matrix.runtime }}
+        node-version: ["22", "24"]
+    name: smoke / node-${{ matrix.node-version }}
     steps:
       - uses: actions/checkout@v6
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.node-version || '22' }}
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
+      - name: Runtime smoke test
+        run: node tests/runtime-smoke.mjs
+      - name: Web smoke test
+        run: node tests/web-smoke.mjs
 
-      - name: Install Deno
-        if: matrix.runtime == 'deno'
-        uses: denoland/setup-deno@v2
+  smoke-deno:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    name: smoke / deno
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: denoland/setup-deno@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Runtime smoke test
+        run: deno run --allow-all tests/runtime-smoke.mjs
+      - name: Web smoke test
+        run: deno run --allow-all tests/web-smoke.mjs
 
-      - name: Install Bun
-        if: matrix.runtime == 'bun'
-        uses: oven-sh/setup-bun@v2
+  smoke-bun:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    name: smoke / bun
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: oven-sh/setup-bun@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Runtime smoke test
+        run: bun tests/runtime-smoke.mjs
+      - name: Web smoke test
+        run: bun tests/web-smoke.mjs
 
-      - name: Smoke test (${{ matrix.runtime }})
-        run: ${{ matrix.command }}
+  smoke-workers:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    name: smoke / cf-workers
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm add -D miniflare
+      - name: Workers smoke test (miniflare)
+        run: node tests/workers/run.mjs
+
+  smoke-browser:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    name: smoke / browser
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm add -D playwright
+      - run: npx playwright install chromium --with-deps
+      - name: Browser smoke test (Chromium via Playwright)
+        run: node tests/browser/run.mjs
