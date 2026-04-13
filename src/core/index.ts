@@ -1,5 +1,5 @@
 export { Eq } from "./eq.js";
-export { Lens, LensOptional, Prism, Traversal } from "./lens.js";
+export { Iso, Lens, LensOptional, Prism, Traversal } from "./lens.js";
 export { Match } from "./match.js";
 export { None, Option, type OptionMatcher, Some } from "./option.js";
 export { Ord } from "./ord.js";

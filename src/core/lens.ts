@@ -269,6 +269,75 @@ export const Prism: {
   from: createPrism,
 };
 
+// ── Iso ────────────────────────────────────────────────────────────────────
+
+/**
+ * An isomorphism: a lossless, invertible transformation between two types.
+ *
+ * If you can convert S to A and A back to S without losing information,
+ * that relationship is an Iso. Every Iso can be used as a Lens, a Prism,
+ * or reversed to swap the direction.
+ *
+ * @example
+ * ```ts
+ * const celsiusToFahrenheit = Iso.from(
+ *   (c: number) => c * 9 / 5 + 32,
+ *   (f: number) => (f - 32) * 5 / 9,
+ * );
+ * celsiusToFahrenheit.get(100);        // 212
+ * celsiusToFahrenheit.reverseGet(212); // 100
+ * ```
+ */
+export interface Iso<S, A> {
+  readonly get: (source: S) => A;
+  readonly reverseGet: (value: A) => S;
+  readonly modify: (fn: (a: A) => A) => (source: S) => S;
+  readonly compose: <B>(other: Iso<A, B>) => Iso<S, B>;
+  readonly toLens: () => Lens<S, A>;
+  readonly toPrism: () => Prism<S, A>;
+  readonly reverse: () => Iso<A, S>;
+}
+
+const createIso = <S, A>(get: (s: S) => A, reverseGet: (a: A) => S): Iso<S, A> =>
+  Object.freeze({
+    get,
+    reverseGet,
+    modify: (fn: (a: A) => A) => (source: S) => reverseGet(fn(get(source))),
+    compose: <B>(other: Iso<A, B>): Iso<S, B> =>
+      createIso(
+        (s: S) => other.get(get(s)),
+        (b: B) => reverseGet(other.reverseGet(b)),
+      ),
+    toLens: (): Lens<S, A> => createLens(get, (a: A) => reverseGet(a)),
+    toPrism: (): Prism<S, A> => createPrism((s: S) => Some(get(s)), reverseGet),
+    reverse: (): Iso<A, S> => createIso(reverseGet, get),
+  });
+
+/**
+ * Create isomorphisms for lossless, invertible transformations.
+ *
+ * @example
+ * ```ts
+ * const iso = Iso.from(
+ *   (s: string) => s.split(''),
+ *   (a: string[]) => a.join(''),
+ * );
+ * iso.get('abc');              // ['a', 'b', 'c']
+ * iso.reverseGet(['x', 'y']); // 'xy'
+ * ```
+ */
+export const Iso: {
+  readonly from: <S, A>(get: (s: S) => A, reverseGet: (a: A) => S) => Iso<S, A>;
+  readonly id: <S>() => Iso<S, S>;
+} = {
+  from: createIso,
+  id: <S>(): Iso<S, S> =>
+    createIso(
+      (s: S) => s,
+      (s: S) => s,
+    ),
+};
+
 // ── Traversal ───────────────────────────────────────────────────────────────
 
 /**
