@@ -22,12 +22,32 @@ const MIME = {
   ".json": "application/json",
 };
 
-// Simple static file server for dist/ and tests/
+const HTML = `<!DOCTYPE html>
+<html>
+<head><title>pure-ts browser smoke test</title></head>
+<body>
+<script type="module">
+import { runWebSmoke } from "./tests/web-smoke.mjs";
+import * as lib from "./dist/index.js";
+
+const result = await runWebSmoke(lib);
+window.__testResult = result;
+</script>
+</body>
+</html>`;
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
-  const filePath = resolve(ROOT, url.pathname.slice(1));
 
-  // Only serve files under the project root
+  // Serve the test harness HTML
+  if (url.pathname === "/__test__") {
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(HTML);
+    return;
+  }
+
+  // Serve static files from project root
+  const filePath = resolve(ROOT, url.pathname.slice(1));
   if (!filePath.startsWith(ROOT)) {
     res.writeHead(403);
     res.end("Forbidden");
@@ -45,42 +65,16 @@ const server = createServer(async (req, res) => {
   }
 });
 
-await new Promise(resolve => server.listen(0, resolve));
+await new Promise(r => server.listen(0, r));
 const port = server.address().port;
-const baseUrl = `http://localhost:${port}`;
-
-const HTML = `<!DOCTYPE html>
-<html>
-<head><title>pure-ts browser smoke test</title></head>
-<body>
-<script type="module">
-import { runWebSmoke } from "./tests/web-smoke.mjs";
-import * as lib from "./dist/index.js";
-
-const result = await runWebSmoke(lib);
-window.__testResult = result;
-</script>
-</body>
-</html>`;
-
-// Serve the HTML inline
-server.on("request", (req, res) => {
-  if (req.url === "/__test__") {
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(HTML);
-  }
-});
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
 
-// Collect console output
 page.on("console", msg => console.log(`  [browser] ${msg.text()}`));
 page.on("pageerror", err => console.log(`  [browser error] ${err.message}`));
 
-await page.goto(`${baseUrl}/__test__`);
-
-// Wait for test result
+await page.goto(`http://localhost:${port}/__test__`);
 await page.waitForFunction(() => window.__testResult !== undefined, { timeout: 30000 });
 const result = await page.evaluate(() => window.__testResult);
 
