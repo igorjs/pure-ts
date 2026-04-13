@@ -88,13 +88,14 @@ interface ErrTypeInstance<Tag extends string, Code extends string> {
   readonly code: Code;
   readonly message: string;
   readonly metadata: Readonly<Record<string, unknown>>;
+  readonly cause: unknown | undefined;
   readonly timestamp: number;
   readonly stack: string | undefined;
 
   /** Wrap this error in `Err(this)` to create a `Result`. */
   toResult<T>(): Result<T, ErrType<Tag, Code>>;
 
-  /** Serialize all fields except `stack`. */
+  /** Serialize all fields except `stack`. Includes `cause` only if defined. */
   toJSON(): {
     readonly tag: Tag;
     readonly name: Tag;
@@ -102,9 +103,10 @@ interface ErrTypeInstance<Tag extends string, Code extends string> {
     readonly message: string;
     readonly metadata: Readonly<Record<string, unknown>>;
     readonly timestamp: number;
+    readonly cause?: unknown;
   };
 
-  /** Format as `'Tag(CODE): message'`. */
+  /** Format as `'Tag(CODE): message'`. Appends cause if present. */
   toString(): string;
 }
 
@@ -124,6 +126,7 @@ class ErrTypeImpl<Tag extends string, Code extends string> implements ErrTypeIns
   readonly code: Code;
   readonly message: string;
   readonly metadata: Readonly<Record<string, unknown>>;
+  readonly cause: unknown | undefined;
   readonly timestamp: number;
   readonly stack: string | undefined;
 
@@ -132,6 +135,7 @@ class ErrTypeImpl<Tag extends string, Code extends string> implements ErrTypeIns
     code: Code,
     message: string,
     metadata: Record<string, unknown>,
+    cause: unknown | undefined,
     stack: string | undefined,
   ) {
     this[ERR_TYPE_BRAND] = true;
@@ -140,6 +144,7 @@ class ErrTypeImpl<Tag extends string, Code extends string> implements ErrTypeIns
     this.code = code;
     this.message = message;
     this.metadata = metadata;
+    this.cause = cause;
     this.timestamp = Date.now();
     this.stack = stack;
     deepFreezeRaw(metadata);
@@ -157,19 +162,45 @@ class ErrTypeImpl<Tag extends string, Code extends string> implements ErrTypeIns
     readonly message: string;
     readonly metadata: Readonly<Record<string, unknown>>;
     readonly timestamp: number;
+    readonly cause?: unknown;
   } {
-    return {
+    const base = {
       tag: this.tag,
       name: this.name,
       code: this.code,
       message: this.message,
       metadata: this.metadata,
       timestamp: this.timestamp,
+    } as {
+      tag: Tag;
+      name: Tag;
+      code: Code;
+      message: string;
+      metadata: Readonly<Record<string, unknown>>;
+      timestamp: number;
+      cause?: unknown;
     };
+    if (this.cause !== undefined) {
+      if (
+        isErrType(this.cause) &&
+        typeof (this.cause as unknown as Record<string, unknown>)["toJSON"] === "function"
+      ) {
+        base.cause = (this.cause as ErrTypeInstance<string, string>).toJSON();
+      } else if (this.cause instanceof Error) {
+        base.cause = { name: this.cause.name, message: this.cause.message };
+      } else {
+        base.cause = this.cause;
+      }
+    }
+    return base;
   }
 
   toString(): string {
-    return `${this.tag}(${this.code}): ${this.message}`;
+    const base = `${this.tag}(${this.code}): ${this.message}`;
+    if (this.cause !== undefined) {
+      return `${base} [caused by: ${this.cause}]`;
+    }
+    return base;
   }
 }
 
@@ -191,7 +222,10 @@ class ErrTypeImpl<Tag extends string, Code extends string> implements ErrTypeIns
  */
 export interface ErrTypeConstructor<Tag extends string, Code extends string> {
   /** Create a new frozen error instance. */
-  (message: string, metadata?: Record<string, unknown>): ErrType<Tag, Code>;
+  (
+    message: string,
+    options?: Record<string, unknown> | { metadata?: Record<string, unknown>; cause?: unknown },
+  ): ErrType<Tag, Code>;
 
   /** The tag literal for this error type. */
   readonly tag: Tag;
@@ -258,8 +292,24 @@ export const ErrType: {
   ): ErrTypeConstructor<Tag, Code> => {
     const resolvedCode = (code ?? pascalToScreamingSnake(tag)) as Code;
 
-    const ctor = (message: string, metadata?: Record<string, unknown>): ErrType<Tag, Code> =>
-      new ErrTypeImpl(tag, resolvedCode, message, metadata ?? {}, captureStack());
+    const ctor = (
+      message: string,
+      optionsOrMetadata?: Record<string, unknown>,
+    ): ErrType<Tag, Code> => {
+      let metadata: Record<string, unknown>;
+      let cause: unknown | undefined;
+      if (optionsOrMetadata !== undefined && "cause" in optionsOrMetadata) {
+        // Options-style: { metadata?, cause? }
+        const opts = optionsOrMetadata as { metadata?: Record<string, unknown>; cause?: unknown };
+        metadata = opts.metadata ?? {};
+        cause = opts.cause;
+      } else {
+        // Backward-compatible: treat entire argument as metadata
+        metadata = optionsOrMetadata ?? {};
+        cause = undefined;
+      }
+      return new ErrTypeImpl(tag, resolvedCode, message, metadata, cause, captureStack());
+    };
 
     return Object.assign(ctor, {
       tag,

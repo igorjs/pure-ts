@@ -19,6 +19,7 @@ const {
   LensOptional,
   Prism,
   Traversal,
+  Iso,
   Ok,
   Err,
   Some,
@@ -27,6 +28,7 @@ const {
   Option,
   Task,
   List,
+  ErrType,
   pipe,
 } = await import("../dist/index.js");
 
@@ -1634,5 +1636,350 @@ describe("List.groupBy", () => {
 
     assert.equal(groups.odd.$immutable, true);
     assert.equal(groups.even.$immutable, true);
+  });
+});
+
+// =============================================================================
+// Iso
+// =============================================================================
+
+describe("Iso", () => {
+  // Celsius <-> Fahrenheit: a classic lossless conversion
+  const celsiusToFahrenheit = Iso.from(
+    c => (c * 9) / 5 + 32,
+    f => ((f - 32) * 5) / 9,
+  );
+
+  describe("get / reverseGet roundtrip", () => {
+    it("get converts S to A", () => {
+      assert.equal(celsiusToFahrenheit.get(0), 32);
+      assert.equal(celsiusToFahrenheit.get(100), 212);
+    });
+
+    it("reverseGet converts A back to S", () => {
+      assert.equal(celsiusToFahrenheit.reverseGet(32), 0);
+      assert.equal(celsiusToFahrenheit.reverseGet(212), 100);
+    });
+
+    it("roundtrip: reverseGet(get(s)) === s", () => {
+      const value = 37;
+      assert.equal(celsiusToFahrenheit.reverseGet(celsiusToFahrenheit.get(value)), value);
+    });
+
+    it("roundtrip: get(reverseGet(a)) === a", () => {
+      const value = 98.6;
+      const result = celsiusToFahrenheit.get(celsiusToFahrenheit.reverseGet(value));
+      assert.ok(Math.abs(result - value) < 1e-10);
+    });
+  });
+
+  describe("modify", () => {
+    it("applies transformation through the iso", () => {
+      // Double the fahrenheit value of 0C (32F) -> 64F -> back to celsius
+      const result = celsiusToFahrenheit.modify(f => f * 2)(0);
+      // 0C -> 32F -> 64F -> ~17.78C
+      const expected = ((64 - 32) * 5) / 9;
+      assert.ok(Math.abs(result - expected) < 1e-10);
+    });
+
+    it("identity function returns same value", () => {
+      assert.equal(celsiusToFahrenheit.modify(x => x)(100), 100);
+    });
+  });
+
+  describe("compose", () => {
+    it("chains two Isos", () => {
+      // string <-> number[] (char codes)
+      const strToCharCodes = Iso.from(
+        s => Array.from(s).map(c => c.charCodeAt(0)),
+        codes => codes.map(c => String.fromCharCode(c)).join(""),
+      );
+
+      // number[] <-> string (JSON)
+      const codesToJson = Iso.from(
+        codes => JSON.stringify(codes),
+        json => JSON.parse(json),
+      );
+
+      const composed = strToCharCodes.compose(codesToJson);
+
+      const json = composed.get("AB");
+      assert.equal(json, "[65,66]");
+
+      const back = composed.reverseGet("[65,66]");
+      assert.equal(back, "AB");
+    });
+
+    it("composed roundtrip holds", () => {
+      const double = Iso.from(
+        n => n * 2,
+        n => n / 2,
+      );
+      const addTen = Iso.from(
+        n => n + 10,
+        n => n - 10,
+      );
+      const composed = double.compose(addTen);
+
+      assert.equal(composed.get(5), 20); // 5*2=10, 10+10=20
+      assert.equal(composed.reverseGet(20), 5); // 20-10=10, 10/2=5
+    });
+  });
+
+  describe("reverse", () => {
+    it("swaps get and reverseGet", () => {
+      const reversed = celsiusToFahrenheit.reverse();
+
+      // reversed.get is the original reverseGet (fahrenheit -> celsius)
+      assert.equal(reversed.get(32), 0);
+      assert.equal(reversed.get(212), 100);
+
+      // reversed.reverseGet is the original get (celsius -> fahrenheit)
+      assert.equal(reversed.reverseGet(0), 32);
+      assert.equal(reversed.reverseGet(100), 212);
+    });
+
+    it("double reverse is equivalent to original", () => {
+      const doubleReversed = celsiusToFahrenheit.reverse().reverse();
+      assert.equal(doubleReversed.get(100), 212);
+      assert.equal(doubleReversed.reverseGet(212), 100);
+    });
+  });
+
+  describe("toLens", () => {
+    it("returns a working Lens", () => {
+      const lens = celsiusToFahrenheit.toLens();
+
+      assert.equal(lens.get(0), 32);
+      assert.equal(lens.get(100), 212);
+    });
+
+    it("lens.set replaces the value through reverseGet", () => {
+      const lens = celsiusToFahrenheit.toLens();
+
+      // set fahrenheit to 212, get back celsius
+      const result = lens.set(212)(0);
+      assert.equal(result, 100);
+    });
+
+    it("lens.modify works", () => {
+      const lens = celsiusToFahrenheit.toLens();
+
+      // 0C -> 32F, double -> 64F -> back to celsius
+      const result = lens.modify(f => f * 2)(0);
+      const expected = ((64 - 32) * 5) / 9;
+      assert.ok(Math.abs(result - expected) < 1e-10);
+    });
+  });
+
+  describe("toPrism", () => {
+    it("returns a working Prism", () => {
+      const prism = celsiusToFahrenheit.toPrism();
+
+      const result = prism.getOption(100);
+      assert.equal(result.isSome, true);
+      assert.equal(result.unwrap(), 212);
+    });
+
+    it("reverseGet constructs the source", () => {
+      const prism = celsiusToFahrenheit.toPrism();
+
+      assert.equal(prism.reverseGet(212), 100);
+    });
+
+    it("prism.modify works", () => {
+      const prism = celsiusToFahrenheit.toPrism();
+
+      const result = prism.modify(f => f + 1)(0);
+      // 0C -> 32F -> 33F -> back to celsius
+      const expected = ((33 - 32) * 5) / 9;
+      assert.ok(Math.abs(result - expected) < 1e-10);
+    });
+  });
+
+  describe("Iso.id", () => {
+    it("get returns the same value", () => {
+      const id = Iso.id();
+      assert.equal(id.get(42), 42);
+      assert.equal(id.get("hello"), "hello");
+    });
+
+    it("reverseGet returns the same value", () => {
+      const id = Iso.id();
+      assert.equal(id.reverseGet(42), 42);
+    });
+
+    it("modify applies fn directly", () => {
+      const id = Iso.id();
+      assert.equal(id.modify(n => n + 1)(41), 42);
+    });
+
+    it("reverse of id is still id", () => {
+      const id = Iso.id();
+      const rev = id.reverse();
+      assert.equal(rev.get(42), 42);
+      assert.equal(rev.reverseGet(42), 42);
+    });
+  });
+
+  describe("frozen instances", () => {
+    it("isos are frozen", () => {
+      const iso = Iso.from(
+        n => n.toString(),
+        s => Number(s),
+      );
+      assert.equal(Object.isFrozen(iso), true);
+    });
+
+    it("composed isos are frozen", () => {
+      const a = Iso.from(
+        n => n * 2,
+        n => n / 2,
+      );
+      const b = Iso.from(
+        n => n + 1,
+        n => n - 1,
+      );
+      assert.equal(Object.isFrozen(a.compose(b)), true);
+    });
+
+    it("reversed isos are frozen", () => {
+      const iso = Iso.from(
+        n => n * 2,
+        n => n / 2,
+      );
+      assert.equal(Object.isFrozen(iso.reverse()), true);
+    });
+  });
+});
+
+// =============================================================================
+// ErrType cause chain
+// =============================================================================
+
+describe("ErrType cause chain", () => {
+  const NotFound = ErrType("NotFound");
+  const DbError = ErrType("DbError");
+
+  it("creates error with cause from a native Error", () => {
+    const original = new Error("connection refused");
+    const err = NotFound("User not found", { cause: original });
+    assert.equal(err.cause, original);
+    assert.equal(err.message, "User not found");
+    assert.equal(err.tag, "NotFound");
+  });
+
+  it("cause is preserved on the frozen instance", () => {
+    const original = new TypeError("bad input");
+    const err = NotFound("gone", { cause: original });
+    assert.equal(Object.isFrozen(err), true);
+    assert.equal(err.cause, original);
+  });
+
+  it("cause defaults to undefined when not provided", () => {
+    const err = NotFound("gone");
+    assert.equal(err.cause, undefined);
+  });
+
+  it("toString appends cause when present", () => {
+    const original = new Error("timeout");
+    const err = NotFound("User not found", { cause: original });
+    const str = err.toString();
+    assert.equal(str.startsWith("NotFound(NOT_FOUND): User not found [caused by: "), true);
+    assert.equal(str.includes("timeout"), true);
+  });
+
+  it("toString omits cause suffix when cause is undefined", () => {
+    const err = NotFound("User not found");
+    assert.equal(err.toString(), "NotFound(NOT_FOUND): User not found");
+  });
+
+  it("toJSON includes cause when it is a native Error", () => {
+    const original = new Error("disk full");
+    const err = NotFound("write failed", { cause: original });
+    const json = err.toJSON();
+    assert.deepEqual(json.cause, { name: "Error", message: "disk full" });
+  });
+
+  it("toJSON includes cause as-is for primitive values", () => {
+    const err = NotFound("failed", { cause: "some reason" });
+    const json = err.toJSON();
+    assert.equal(json.cause, "some reason");
+  });
+
+  it("toJSON omits cause key when cause is undefined", () => {
+    const err = NotFound("gone");
+    const json = err.toJSON();
+    assert.equal("cause" in json, false);
+  });
+
+  it("toJSON serializes ErrType cause via its own toJSON", () => {
+    const inner = DbError("connection lost");
+    const outer = NotFound("User not found", { cause: inner });
+    const json = outer.toJSON();
+    assert.equal(json.cause.tag, "DbError");
+    assert.equal(json.cause.code, "DB_ERROR");
+    assert.equal(json.cause.message, "connection lost");
+    assert.equal("stack" in json.cause, false);
+  });
+
+  it("backward compatibility: plain metadata object still works", () => {
+    const err = NotFound("User not found", { userId: "u_123", role: "admin" });
+    assert.deepEqual(err.metadata, { userId: "u_123", role: "admin" });
+    assert.equal(err.cause, undefined);
+    assert.equal(err.tag, "NotFound");
+    assert.equal(err.message, "User not found");
+  });
+
+  it("backward compatibility: metadata is deep frozen", () => {
+    const err = NotFound("gone", { nested: { value: 1 } });
+    assert.throws(() => {
+      err.metadata.nested.value = 2;
+    }, TypeError);
+  });
+
+  it("options-style: metadata and cause together", () => {
+    const original = new Error("timeout");
+    const err = NotFound("User not found", {
+      cause: original,
+      metadata: { userId: "u_456" },
+    });
+    assert.equal(err.cause, original);
+    assert.deepEqual(err.metadata, { userId: "u_456" });
+  });
+
+  it("nested causes: ErrType wrapping ErrType wrapping Error", () => {
+    const root = new Error("ECONNREFUSED");
+    const mid = DbError("query failed", { cause: root });
+    const outer = NotFound("User not found", { cause: mid });
+
+    // Outer cause is the mid ErrType
+    assert.equal(outer.cause, mid);
+    assert.equal(outer.cause.tag, "DbError");
+
+    // Mid cause is the root Error
+    assert.equal(mid.cause, root);
+    assert.equal(mid.cause.message, "ECONNREFUSED");
+
+    // toString chain
+    assert.equal(outer.toString().includes("[caused by: "), true);
+    assert.equal(mid.toString().includes("[caused by: "), true);
+
+    // toJSON chain
+    const outerJson = outer.toJSON();
+    assert.equal(outerJson.cause.tag, "DbError");
+    assert.deepEqual(outerJson.cause.cause, { name: "Error", message: "ECONNREFUSED" });
+  });
+
+  it("ErrType.is() still works with cause field present", () => {
+    const err = NotFound("gone", { cause: new Error("x") });
+    assert.equal(ErrType.is(err), true);
+    assert.equal(NotFound.is(err), true);
+  });
+
+  it("Constructor.is() still rejects wrong error types with cause", () => {
+    const Forbidden = ErrType("Forbidden");
+    const err = NotFound("gone", { cause: new Error("x") });
+    assert.equal(Forbidden.is(err), false);
   });
 });
