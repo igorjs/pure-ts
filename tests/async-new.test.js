@@ -1402,3 +1402,299 @@ describe("Env", () => {
     });
   });
 });
+
+// =============================================================================
+// 10. Stream reactive operators
+// =============================================================================
+
+// Helper: create an async iterable from timed steps (for debounce tests)
+const timedSource = steps => {
+  let i = 0;
+  return {
+    [Symbol.asyncIterator]() {
+      return {
+        async next() {
+          while (i < steps.length) {
+            const step = steps[i++];
+            if (step.delay > 0) {
+              await sleep(step.delay);
+            }
+            if (step.value !== null) {
+              return { value: step.value, done: false };
+            }
+          }
+          return { value: undefined, done: true };
+        },
+      };
+    },
+  };
+};
+
+describe("Stream.debounce", () => {
+  it("emits only the last value after a burst", async () => {
+    // Source emits 1, 2, 3 rapidly (no delay between them), then stops.
+    // Debounce of 50ms should only emit the last value (3).
+    const s = Stream(() => {
+      let i = 0;
+      const values = [Ok(1), Ok(2), Ok(3)];
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            async next() {
+              if (i < values.length) {
+                return { value: values[i++], done: false };
+              }
+              return { value: undefined, done: true };
+            },
+          };
+        },
+      };
+    }).debounce(50);
+
+    const result = await s.collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), [3]);
+  });
+
+  it("emits multiple values when there are pauses between bursts", async () => {
+    // Emit 1, 2 rapidly, then wait, then emit 3, 4 rapidly.
+    // Debounce of 30ms should emit 2 (end of first burst) and 4 (end of second burst).
+    const s = Stream(() => {
+      return timedSource([
+        { value: Ok(1), delay: 0 },
+        { value: Ok(2), delay: 0 },
+        { value: null, delay: 80 }, // pause
+        { value: Ok(3), delay: 0 },
+        { value: Ok(4), delay: 0 },
+      ]);
+    }).debounce(30);
+
+    const result = await s.collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), [2, 4]);
+  });
+
+  it("handles empty stream", async () => {
+    const result = await Stream.empty().debounce(50).collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), []);
+  });
+
+  it("handles single value", async () => {
+    const result = await Stream.of(42).debounce(30).collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), [42]);
+  });
+});
+
+describe("Stream.throttle", () => {
+  it("lets the first value through immediately", async () => {
+    const result = await Stream.of(1, 2, 3).throttle(1000).collect().run();
+    assert.equal(result.isOk, true);
+    // Only the first value passes because the others arrive within the same ms window
+    assert.ok(result.unwrap().length > 0);
+    assert.equal(result.unwrap()[0], 1);
+  });
+
+  it("drops values within the throttle window", async () => {
+    // All values are emitted synchronously, so only the first passes a 100ms throttle
+    const result = await Stream.of(1, 2, 3, 4, 5).throttle(100).collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), [1]);
+  });
+
+  it("emits values that arrive after the window expires", async () => {
+    // Create a stream with delays: value, pause, value
+    const s = Stream(() => {
+      const steps = [
+        { value: Ok(1), delay: 0 },
+        { value: Ok(2), delay: 60 },
+        { value: Ok(3), delay: 60 },
+      ];
+      let i = 0;
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            async next() {
+              if (i >= steps.length) {
+                return { value: undefined, done: true };
+              }
+              const step = steps[i++];
+              if (step.delay > 0) {
+                await sleep(step.delay);
+              }
+              return { value: step.value, done: false };
+            },
+          };
+        },
+      };
+    }).throttle(50);
+
+    const result = await s.collect().run();
+    assert.equal(result.isOk, true);
+    // First value passes, second arrives after 60ms (> 50ms window), third arrives after another 60ms
+    assert.deepEqual(result.unwrap(), [1, 2, 3]);
+  });
+
+  it("handles empty stream", async () => {
+    const result = await Stream.empty().throttle(100).collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), []);
+  });
+
+  it("passes errors through without throttling", async () => {
+    const s = Stream(() => {
+      let i = 0;
+      const values = [Ok(1), Err("oops")];
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            async next() {
+              if (i < values.length) {
+                return { value: values[i++], done: false };
+              }
+              return { value: undefined, done: true };
+            },
+          };
+        },
+      };
+    }).throttle(1000);
+
+    const result = await s.collect().run();
+    // collect() short-circuits on first Err
+    assert.equal(result.isErr, true);
+  });
+});
+
+describe("Stream.distinctUntilChanged", () => {
+  it("removes consecutive duplicates with default equality", async () => {
+    const result = await Stream.of(1, 1, 2, 2, 3, 3, 1).distinctUntilChanged().collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), [1, 2, 3, 1]);
+  });
+
+  it("passes all values when no consecutive duplicates exist", async () => {
+    const result = await Stream.of(1, 2, 3, 4).distinctUntilChanged().collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), [1, 2, 3, 4]);
+  });
+
+  it("handles single-element stream", async () => {
+    const result = await Stream.of(42).distinctUntilChanged().collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), [42]);
+  });
+
+  it("handles empty stream", async () => {
+    const result = await Stream.empty().distinctUntilChanged().collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), []);
+  });
+
+  it("uses custom equality function", async () => {
+    // Compare objects by their 'id' field
+    const items = [
+      { id: 1, name: "a" },
+      { id: 1, name: "b" },
+      { id: 2, name: "c" },
+      { id: 2, name: "d" },
+      { id: 3, name: "e" },
+    ];
+    const result = await Stream.fromArray(items)
+      .distinctUntilChanged((a, b) => a.id === b.id)
+      .collect()
+      .run();
+    assert.equal(result.isOk, true);
+    const values = result.unwrap();
+    assert.equal(values.length, 3);
+    assert.equal(values[0].name, "a");
+    assert.equal(values[1].name, "c");
+    assert.equal(values[2].name, "e");
+  });
+
+  it("handles all identical values", async () => {
+    const result = await Stream.of(5, 5, 5, 5).distinctUntilChanged().collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), [5]);
+  });
+});
+
+describe("Stream.merge", () => {
+  it("combines values from multiple streams", async () => {
+    const a = Stream.of(1, 2, 3);
+    const b = Stream.of(4, 5, 6);
+    const result = await Stream.merge(a, b).collect().run();
+    assert.equal(result.isOk, true);
+    const values = result.unwrap();
+    // All values should be present (order may vary due to concurrency)
+    assert.equal(values.length, 6);
+    assert.equal(values.includes(1), true);
+    assert.equal(values.includes(2), true);
+    assert.equal(values.includes(3), true);
+    assert.equal(values.includes(4), true);
+    assert.equal(values.includes(5), true);
+    assert.equal(values.includes(6), true);
+  });
+
+  it("handles single stream", async () => {
+    const result = await Stream.merge(Stream.of(1, 2, 3))
+      .collect()
+      .run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), [1, 2, 3]);
+  });
+
+  it("handles empty streams", async () => {
+    const result = await Stream.merge(Stream.empty(), Stream.empty()).collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), []);
+  });
+
+  it("handles mix of empty and non-empty streams", async () => {
+    const result = await Stream.merge(Stream.empty(), Stream.of(1, 2), Stream.empty())
+      .collect()
+      .run();
+    assert.equal(result.isOk, true);
+    const values = result.unwrap();
+    assert.equal(values.length, 2);
+    assert.equal(values.includes(1), true);
+    assert.equal(values.includes(2), true);
+  });
+
+  it("interleaves streams with different speeds", async () => {
+    // Stream a emits immediately, stream b emits with delays
+    const a = Stream.of(1, 2);
+    const b = Stream(() => {
+      let i = 0;
+      const values = [Ok(10), Ok(20)];
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            async next() {
+              if (i >= values.length) {
+                return { value: undefined, done: true };
+              }
+              await sleep(20);
+              return { value: values[i++], done: false };
+            },
+          };
+        },
+      };
+    });
+
+    const result = await Stream.merge(a, b).collect().run();
+    assert.equal(result.isOk, true);
+    const values = result.unwrap();
+    assert.equal(values.length, 4);
+    assert.equal(values.includes(1), true);
+    assert.equal(values.includes(2), true);
+    assert.equal(values.includes(10), true);
+    assert.equal(values.includes(20), true);
+  });
+
+  it("handles zero streams (no arguments)", async () => {
+    const result = await Stream.merge().collect().run();
+    assert.equal(result.isOk, true);
+    assert.deepEqual(result.unwrap(), []);
+  });
+});

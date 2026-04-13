@@ -62,6 +62,12 @@ export interface Stream<T, E> {
   ) => TaskLike<Readonly<Record<K, readonly T[]>>, E>;
   /** Scan (running fold) producing intermediate accumulated values. */
   readonly scan: <U>(fn: (acc: U, value: T) => U, init: U) => Stream<U, E>;
+  /** Emit value only after `ms` milliseconds of silence. Resets timer on each new value. */
+  readonly debounce: (ms: number) => Stream<T, E>;
+  /** Emit at most one value per `ms` milliseconds. First value passes immediately. */
+  readonly throttle: (ms: number) => Stream<T, E>;
+  /** Skip consecutive duplicate values. Uses `===` when no equality function provided. */
+  readonly distinctUntilChanged: (eq?: (a: T, b: T) => boolean) => Stream<T, E>;
   readonly run: () => AsyncIterable<Result<T, E>>;
 }
 
@@ -102,6 +108,101 @@ async function* zipIterators<T, U, E>(
     yield Ok([rA.value, rB.value] as [T, U]);
   }
 }
+
+// ── Async queue for push-to-pull bridging ───────────────────────────────────
+
+/** Simple async queue: producers push, consumers await next value. */
+interface AsyncQueue<T> {
+  push(value: T): void;
+  done(): void;
+  next(): Promise<IteratorResult<T>>;
+}
+
+const createAsyncQueue = <T>(): AsyncQueue<T> => {
+  const items: T[] = [];
+  let finished = false;
+  let notify: (() => void) | null = null;
+
+  const wake = (): void => {
+    if (notify !== null) {
+      notify();
+      notify = null;
+    }
+  };
+
+  return {
+    push(value: T): void {
+      items.push(value);
+      wake();
+    },
+    done(): void {
+      finished = true;
+      wake();
+    },
+    next(): Promise<IteratorResult<T>> {
+      if (items.length > 0) {
+        return Promise.resolve({ value: items.shift()!, done: false });
+      }
+      if (finished) {
+        return Promise.resolve({ value: undefined as T, done: true });
+      }
+      return new Promise<IteratorResult<T>>(r => {
+        notify = () => {
+          if (items.length > 0) {
+            r({ value: items.shift()!, done: false });
+          } else if (finished) {
+            r({ value: undefined as T, done: true });
+          }
+        };
+      });
+    },
+  };
+};
+
+// ── Debounce pump (extracted for complexity) ────────────────────────────────
+
+/** Eagerly consume an async iterator, debouncing Ok values into a queue. */
+const pumpDebounce = <T, E>(
+  iter: AsyncIterator<Result<T, E>>,
+  ms: number,
+  q: AsyncQueue<Result<T, E>>,
+): void => {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let sourceExhausted = false;
+  const pull = (): void => {
+    iter.next().then(next => {
+      if (next.done) {
+        sourceExhausted = true;
+        // If no debounce timer is pending, mark the queue as done immediately.
+        // Otherwise the timer callback will call q.done() after flushing.
+        if (timer === null) {
+          q.done();
+        }
+        return;
+      }
+      if (next.value.isErr) {
+        q.push(next.value);
+        pull();
+        return;
+      }
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+      const latest = next.value;
+      timer = setTimeout(() => {
+        timer = null;
+        q.push(latest);
+        // Why: if the source finished while we were debouncing,
+        // signal completion now that the final value has been flushed.
+        if (sourceExhausted) {
+          q.done();
+        }
+      }, ms);
+      pull();
+    });
+  };
+  pull();
+};
 
 // ── Implementation ──────────────────────────────────────────────────────────
 
@@ -334,6 +435,64 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
       }),
     ),
 
+  debounce: (ms: number): Stream<T, E> =>
+    createStream(() => {
+      const q = createAsyncQueue<Result<T, E>>();
+      let started = false;
+
+      const start = (): void => {
+        pumpDebounce(source()[Symbol.asyncIterator](), ms, q);
+      };
+
+      return {
+        [Symbol.asyncIterator]() {
+          if (!started) {
+            started = true;
+            start();
+          }
+          return { next: () => q.next() };
+        },
+      };
+    }),
+
+  throttle: (ms: number): Stream<T, E> =>
+    createStream(
+      gen<T, E>(async function* () {
+        let lastEmitTime = 0;
+        for await (const r of source()) {
+          if (r.isErr) {
+            yield r;
+            continue;
+          }
+          const now = Date.now();
+          if (now - lastEmitTime >= ms) {
+            lastEmitTime = now;
+            yield r;
+          }
+        }
+      }),
+    ),
+
+  distinctUntilChanged: (eq?: (a: T, b: T) => boolean): Stream<T, E> =>
+    createStream(
+      gen<T, E>(async function* () {
+        const isEqual = eq ?? ((a: T, b: T) => a === b);
+        let hasPrev = false;
+        let prev: T | undefined;
+        for await (const r of source()) {
+          if (r.isErr) {
+            yield r;
+            continue;
+          }
+          if (!hasPrev || !isEqual(prev as T, r.value)) {
+            hasPrev = true;
+            prev = r.value;
+            yield r;
+          }
+        }
+      }),
+    ),
+
   run: source,
 });
 
@@ -369,6 +528,8 @@ export const Stream: {
   readonly interval: (period: Duration) => Stream<number, never>;
   /** Bridge a web standard ReadableStream into a pull-based Stream. */
   readonly fromReadable: <E = never>(readable: ReadableStream<Uint8Array>) => Stream<Uint8Array, E>;
+  /** Merge multiple streams, interleaving values as they arrive. */
+  readonly merge: <T, E>(...streams: readonly Stream<T, E>[]) => Stream<T, E>;
 } = Object.assign(
   <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T, E> => createStream(source),
   {
@@ -448,5 +609,77 @@ export const Stream: {
           }
         }),
       ),
+
+    merge: <T, E>(...streams: readonly Stream<T, E>[]): Stream<T, E> =>
+      createStream(() => {
+        const queue: Result<T, E>[] = [];
+        let resolve: ((v: IteratorResult<Result<T, E>>) => void) | null = null;
+        let remaining = streams.length;
+
+        const wake = (): void => {
+          if (resolve === null) {
+            return;
+          }
+          if (queue.length > 0) {
+            const r = resolve;
+            resolve = null;
+            r({ value: queue.shift()!, done: false });
+          } else if (remaining === 0) {
+            const r = resolve;
+            resolve = null;
+            r({ value: undefined as unknown as Result<T, E>, done: true });
+          }
+          // Why: if neither condition is met (queue empty, sources still active),
+          // leave resolve in place so the next wake() call can try again.
+        };
+
+        // Why: consume all source streams concurrently in the background,
+        // pushing results into a shared queue as they arrive.
+        const start = (): void => {
+          for (const stream of streams) {
+            const iter = stream.run()[Symbol.asyncIterator]();
+            const pull = (): void => {
+              iter.next().then(next => {
+                if (next.done) {
+                  remaining--;
+                  wake();
+                  return;
+                }
+                queue.push(next.value);
+                wake();
+                pull();
+              });
+            };
+            pull();
+          }
+        };
+
+        let started = false;
+
+        return {
+          [Symbol.asyncIterator]() {
+            if (!started) {
+              started = true;
+              start();
+            }
+            return {
+              next(): Promise<IteratorResult<Result<T, E>>> {
+                if (queue.length > 0) {
+                  return Promise.resolve({ value: queue.shift()!, done: false });
+                }
+                if (remaining === 0 && queue.length === 0) {
+                  return Promise.resolve({
+                    value: undefined as unknown as Result<T, E>,
+                    done: true,
+                  });
+                }
+                return new Promise<IteratorResult<Result<T, E>>>(r => {
+                  resolve = r;
+                });
+              },
+            };
+          },
+        };
+      }),
   },
 );
