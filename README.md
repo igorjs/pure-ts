@@ -4,7 +4,7 @@
 [![JSR](https://jsr.io/badges/@igorjs/pure-ts)](https://jsr.io/@igorjs/pure-ts)
 [![JSR Score](https://jsr.io/badges/@igorjs/pure-ts/score)](https://jsr.io/@igorjs/pure-ts)
 [![License](https://img.shields.io/npm/l/@igorjs/pure-ts)](https://github.com/igorjs/pure-ts/blob/main/LICENSE)
-[![Tests](https://img.shields.io/badge/tests-890_passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-986_passing-brightgreen)]()
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 
 Functional application framework for TypeScript. Zero dependencies.
@@ -14,6 +14,8 @@ Errors are values, not exceptions. Data is immutable, enforced at runtime. Async
 ![Node.js](https://img.shields.io/badge/Node.js_22+-339933?logo=nodedotjs&logoColor=white)
 ![Deno](https://img.shields.io/badge/Deno_2+-000000?logo=deno&logoColor=white)
 ![Bun](https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white)
+![Cloudflare Workers](https://img.shields.io/badge/CF_Workers-F38020?logo=cloudflare&logoColor=white)
+![Browser](https://img.shields.io/badge/Chromium-4285F4?logo=googlechrome&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript_5.5+-3178C6?logo=typescript&logoColor=white)
 
 ```ts
@@ -747,17 +749,17 @@ Every module is classified by its runtime requirements. Pure modules use no runt
 | **Client** | web (fetch) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Path / Eol / Platform** | web | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Stream.fromReadable / WebSocket** | web | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **File / Command** | multi-runtime | ✅ | ✅ | ✅ | - | - |
-| **Os / Process / Config** | multi-runtime | ✅ | ✅ | ✅ | - | - |
+| **File / Command** | multi-runtime | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| **Os / Process / Config** | multi-runtime | ✅ | ✅ | ✅ | ⬜ | ⬜ |
 | **Logger** | multi-runtime | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Server / Program** | multi-runtime | ✅ | ✅ | ✅ | - | - |
-| **Dns / Net** | multi-runtime | ✅ | ✅ | ✅ | - | - |
+| **Server / Program** | multi-runtime | ✅ | ✅ | ✅ | ⬜ | ⬜ |
+| **Dns / Net** | multi-runtime | ✅ | ✅ | ✅ | ⬜ | ⬜ |
 
 **Legend:**
 - **pure**: No runtime APIs. Pure TypeScript logic.
 - **web**: Uses web standard APIs (`crypto.subtle`, `URL`, `TextEncoder`, `fetch`, etc.).
 - **multi-runtime**: Detects Deno/Bun/Node via `globalThis` and dispatches to the appropriate API.
-- `-` = not applicable (no filesystem/subprocess in this environment).
+- ⬜ = loads safely, returns `Err`/`None` (no filesystem/subprocess in this environment).
 
 ## Performance
 
