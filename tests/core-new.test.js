@@ -1204,6 +1204,86 @@ describe("Result.sequence (alias for collect)", () => {
   });
 });
 
+describe("Result.fromNullable", () => {
+  it("non-null value returns Ok", () => {
+    const result = Result.fromNullable(42, () => "was null");
+    assert.equal(result.isOk, true);
+    assert.equal(result.value, 42);
+  });
+
+  it("null returns Err", () => {
+    const result = Result.fromNullable(null, () => "was null");
+    assert.equal(result.isErr, true);
+    assert.equal(result.error, "was null");
+  });
+
+  it("undefined returns Err", () => {
+    const result = Result.fromNullable(undefined, () => "missing");
+    assert.equal(result.isErr, true);
+    assert.equal(result.error, "missing");
+  });
+
+  it("falsy values (0, empty string, false) return Ok", () => {
+    assert.equal(Result.fromNullable(0, () => "err").isOk, true);
+    assert.equal(Result.fromNullable("", () => "err").isOk, true);
+    assert.equal(Result.fromNullable(false, () => "err").isOk, true);
+  });
+});
+
+describe("Result.partition", () => {
+  it("separates Ok and Err values", () => {
+    const results = [Ok(1), Err("a"), Ok(2), Err("b"), Ok(3)];
+    const { ok, err } = Result.partition(results);
+    assert.deepEqual(ok, [1, 2, 3]);
+    assert.deepEqual(err, ["a", "b"]);
+  });
+
+  it("all Ok returns empty err array", () => {
+    const { ok, err } = Result.partition([Ok(1), Ok(2)]);
+    assert.deepEqual(ok, [1, 2]);
+    assert.deepEqual(err, []);
+  });
+
+  it("all Err returns empty ok array", () => {
+    const { ok, err } = Result.partition([Err("x"), Err("y")]);
+    assert.deepEqual(ok, []);
+    assert.deepEqual(err, ["x", "y"]);
+  });
+
+  it("empty array returns empty groups", () => {
+    const { ok, err } = Result.partition([]);
+    assert.deepEqual(ok, []);
+    assert.deepEqual(err, []);
+  });
+});
+
+describe("Option.partition", () => {
+  it("separates Some and None values", () => {
+    const options = [Some(1), None, Some(2), None, Some(3)];
+    const { some, none } = Option.partition(options);
+    assert.deepEqual(some, [1, 2, 3]);
+    assert.equal(none, 2);
+  });
+
+  it("all Some returns zero none count", () => {
+    const { some, none } = Option.partition([Some("a"), Some("b")]);
+    assert.deepEqual(some, ["a", "b"]);
+    assert.equal(none, 0);
+  });
+
+  it("all None returns empty some array", () => {
+    const { some, none } = Option.partition([None, None, None]);
+    assert.deepEqual(some, []);
+    assert.equal(none, 3);
+  });
+
+  it("empty array returns empty result", () => {
+    const { some, none } = Option.partition([]);
+    assert.deepEqual(some, []);
+    assert.equal(none, 0);
+  });
+});
+
 describe("Option.traverse", () => {
   it("collects all present values", () => {
     const result = Option.traverse([1, 2, 3], n => Some(n * 10));
