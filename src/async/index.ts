@@ -17,6 +17,7 @@ export {
 } from "./rate-limiter.js";
 export { Retry, type RetryPolicy } from "./retry.js";
 export { Mutex, type MutexInstance, Semaphore, type SemaphoreInstance } from "./semaphore.js";
+export { InvalidTransition, StateMachine } from "./state-machine.js";
 export { Stream } from "./stream.js";
 export { Task } from "./task.js";
 export { TimeoutError, Timer } from "./timer.js";

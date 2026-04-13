@@ -27,6 +27,8 @@ const {
   None,
   Duration,
   Task,
+  StateMachine,
+  InvalidTransition,
 } = await import("../dist/index.js");
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -1696,5 +1698,154 @@ describe("Stream.merge", () => {
     const result = await Stream.merge().collect().run();
     assert.equal(result.isOk, true);
     assert.deepEqual(result.unwrap(), []);
+  });
+});
+
+// =============================================================================
+// 10. StateMachine
+// =============================================================================
+
+describe("StateMachine", () => {
+  const machine = StateMachine({
+    initial: "idle",
+    states: { idle: {}, loading: {}, success: {}, error: {} },
+    transitions: {
+      idle: { FETCH: "loading" },
+      loading: { RESOLVE: "success", REJECT: "error" },
+      success: { RESET: "idle" },
+      error: { RETRY: "loading", RESET: "idle" },
+    },
+  });
+
+  it("initial: returns the initial state", () => {
+    assert.equal(machine.initial, "idle");
+  });
+
+  it("states: returns frozen array of state names", () => {
+    assert.deepEqual(machine.states, ["idle", "loading", "success", "error"]);
+    assert.throws(() => {
+      machine.states[0] = "x";
+    }, TypeError);
+  });
+
+  it("events: returns valid events for a state", () => {
+    assert.deepEqual(machine.events("idle"), ["FETCH"]);
+    assert.deepEqual(machine.events("loading"), ["RESOLVE", "REJECT"]);
+  });
+
+  it("events: returns empty for state with no transitions", () => {
+    assert.deepEqual(machine.events("nonexistent"), []);
+  });
+
+  it("transition: valid transition returns [nextState, ctx]", () => {
+    const [next, ctx] = machine.transition("idle", undefined, "FETCH");
+    assert.equal(next, "loading");
+    assert.equal(ctx, undefined);
+  });
+
+  it("transition: chained transitions", () => {
+    const [s1] = machine.transition("idle", undefined, "FETCH");
+    const [s2] = machine.transition(s1, undefined, "RESOLVE");
+    assert.equal(s2, "success");
+  });
+
+  it("send: valid transition returns Ok", () => {
+    const result = machine.send("idle", undefined, "FETCH");
+    assert.equal(result.isOk, true);
+    assert.equal(result.value[0], "loading");
+  });
+
+  it("send: invalid event returns Err(InvalidTransition)", () => {
+    const result = machine.send("idle", undefined, "RESOLVE");
+    assert.equal(result.isErr, true);
+    assert.equal(result.error.tag, "InvalidTransition");
+  });
+
+  it("send: invalid state returns Err", () => {
+    const result = machine.send("nonexistent", undefined, "FETCH");
+    assert.equal(result.isErr, true);
+  });
+
+  it("canTransition: returns true for valid", () => {
+    assert.equal(machine.canTransition("idle", "FETCH"), true);
+  });
+
+  it("canTransition: returns false for invalid", () => {
+    assert.equal(machine.canTransition("idle", "RESOLVE"), false);
+  });
+
+  it("machine object is frozen", () => {
+    assert.throws(() => {
+      machine.initial = "x";
+    }, TypeError);
+  });
+});
+
+describe("StateMachine with guards and actions", () => {
+  it("guard blocks transition", () => {
+    const m = StateMachine({
+      initial: "locked",
+      states: { locked: {}, unlocked: {} },
+      transitions: {
+        locked: { UNLOCK: { target: "unlocked", guard: ctx => ctx.hasKey } },
+        unlocked: { LOCK: "locked" },
+      },
+    });
+    const blocked = m.send("locked", { hasKey: false }, "UNLOCK");
+    assert.equal(blocked.isErr, true);
+    assert.ok(blocked.error.message.includes("Guard"));
+
+    const allowed = m.send("locked", { hasKey: true }, "UNLOCK");
+    assert.equal(allowed.isOk, true);
+    assert.equal(allowed.value[0], "unlocked");
+  });
+
+  it("action transforms context", () => {
+    const m = StateMachine({
+      initial: "idle",
+      states: { idle: {}, active: {} },
+      transitions: {
+        idle: { START: { target: "active", action: ctx => ({ ...ctx, count: ctx.count + 1 }) } },
+        active: { STOP: "idle" },
+      },
+    });
+    const result = m.send("idle", { count: 0 }, "START");
+    assert.equal(result.isOk, true);
+    assert.equal(result.value[1].count, 1);
+  });
+
+  it("entry/exit hooks fire in correct order", () => {
+    const log = [];
+    const m = StateMachine({
+      initial: "a",
+      states: {
+        a: {
+          onExit: ctx => {
+            log.push("exit-a");
+            return ctx;
+          },
+        },
+        b: {
+          onEntry: ctx => {
+            log.push("enter-b");
+            return ctx;
+          },
+        },
+      },
+      transitions: {
+        a: {
+          GO: {
+            target: "b",
+            action: ctx => {
+              log.push("action");
+              return ctx;
+            },
+          },
+        },
+        b: { BACK: "a" },
+      },
+    });
+    m.send("a", undefined, "GO");
+    assert.deepEqual(log, ["exit-a", "action", "enter-b"]);
   });
 });
