@@ -203,6 +203,18 @@ const recordValuesSchema = <V>(value: SchemaType<V>): SchemaType<Readonly<Record
 const literalSchema = <const T extends string | number | boolean>(value: T): SchemaType<T> =>
   createSchema(i => (i === value ? Ok(value) : schemaErr([], `literal(${String(value)})`, i)));
 
+const enumSchema = <const T extends readonly (string | number | boolean)[]>(
+  values: T,
+): SchemaType<T[number]> =>
+  createSchema(i => {
+    for (const v of values) {
+      if (i === v) {
+        return Ok(v as T[number]);
+      }
+    }
+    return schemaErr([], `enum(${values.map(String).join(" | ")})`, i);
+  });
+
 const unionSchema = <T extends readonly SchemaType<any>[]>(
   ...schemas: T
 ): SchemaType<T[number] extends SchemaType<infer U> ? U : never> =>
@@ -271,6 +283,10 @@ export const Schema: {
   readonly url: SchemaType<string>;
   readonly uuid: SchemaType<string>;
   readonly isoDate: SchemaType<string>;
+  readonly date: SchemaType<Date>;
+  readonly enum: <const T extends readonly (string | number | boolean)[]>(
+    values: T,
+  ) => SchemaType<T[number]>;
   readonly int: SchemaType<number>;
   readonly min: (n: number) => SchemaType<number>;
   readonly max: (n: number) => SchemaType<number>;
@@ -420,6 +436,17 @@ export const Schema: {
     const d = new Date(s);
     return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(s.slice(0, 10));
   }, "ISO date"),
+
+  /** Parses an ISO 8601 date string into a Date instance. Rejects invalid dates. */
+  date: stringSchema
+    .refine(s => {
+      const d = new Date(s);
+      return !Number.isNaN(d.getTime());
+    }, "date string")
+    .transform(s => new Date(s)),
+
+  /** Validates that input is one of the given enum values. */
+  enum: enumSchema,
 
   /** Integer (no decimal part). */
   int: numberSchema.refine(n => Number.isInteger(n), "integer"),
