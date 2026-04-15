@@ -65,10 +65,11 @@ export interface EventEmitterInstance<Events extends Record<string, unknown>> {
 
 const createInstance = <Events extends Record<string, unknown>>(): EventEmitterInstance<Events> => {
   // Internal storage: event name -> set of handler functions.
-  // We use Function here internally because handlers are typed at the
-  // public API boundary and stored heterogeneously per-event.
+  // Handlers are typed at the public API boundary and stored heterogeneously per-event.
+  // biome-ignore lint/complexity/noBannedTypes: internal type-erased storage, typed at API boundary
   const listeners = new Map<string, Set<Function>>();
 
+  // biome-ignore lint/complexity/noBannedTypes: internal type-erased storage
   const getOrCreate = (event: string): Set<Function> => {
     let set = listeners.get(event);
     if (set === undefined) {
