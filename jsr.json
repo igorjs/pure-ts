@@ -1,6 +1,6 @@
 {
   "name": "@igorjs/pure-ts",
-  "version": "0.7.6",
+  "version": "0.7.7",
   "exports": {
     ".": "./src/index.ts",
     "./core": "./src/core/index.ts",
