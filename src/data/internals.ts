@@ -14,7 +14,7 @@
  *   - **Deep equality** (`deepEqual`) for `Record.equals()` / `List.equals()`
  */
 
-/** JavaScript primitive types (non-object, non-function). */
+/** @internal JavaScript primitive types (non-object, non-function). */
 export type Primitive = string | number | boolean | bigint | symbol | undefined | null;
 
 /**
@@ -36,7 +36,7 @@ export type DeepReadonly<T> = T extends Primitive
           : { readonly [K in keyof T]: DeepReadonly<T[K]> };
 
 /**
- * Draft type for `produce()` recipes.
+ * @internal Draft type for `produce()` recipes.
  *
  * Properties are writable (for reassignment) but arrays become
  * `ReadonlyArray` so mutating methods like `.push()` are blocked

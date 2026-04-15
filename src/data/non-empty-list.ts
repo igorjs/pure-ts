@@ -25,7 +25,7 @@ import { createListProxy, type ImmutableList, type ListBase } from "./list.js";
 // ── NonEmptyList methods ────────────���───────────────────────────────────────
 
 /**
- * Methods specific to non-empty lists where the non-empty guarantee
+ * @internal Methods specific to non-empty lists where the non-empty guarantee
  * enables stronger return types.
  */
 export interface NonEmptyListMethods<T> {

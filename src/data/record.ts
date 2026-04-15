@@ -68,7 +68,7 @@ export interface RecordMethods<T> {
 }
 
 /**
- * Recursively types nested properties:
+ * @internal Recursively types nested properties:
  *   - Primitives stay as-is
  *   - Arrays become ReadonlyArray of recursed elements
  *   - Plain objects become ImmutableRecord (with methods)
@@ -80,7 +80,6 @@ export interface RecordMethods<T> {
  * Exported because {@link ImmutableRecord} references it in its mapped
  * type definition. TypeScript's declaration emit requires referenced types
  * to be exported for `.d.ts` generation (JSR slow-types constraint).
- * Not re-exported from `index.ts`: consumers should not use this directly.
  */
 export type RecordProp<T> = T extends Primitive
   ? T

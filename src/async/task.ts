@@ -110,7 +110,7 @@ class TaskImpl<T, E> {
   /** Run both tasks in parallel, combine results into a tuple. */
   zip<U>(other: Task<U, E>): Task<[T, U], E> {
     return new TaskImpl(async () => {
-      const [a, b] = await Promise.all([this._run(), other._run()]);
+      const [a, b] = await Promise.all([this._run(), other.run()]);
       if (a.isErr) return castErr(a);
       if (b.isErr) return castErr(b);
       return Ok([a.value, b.value] as [T, U]);
@@ -185,13 +185,38 @@ class TaskImpl<T, E> {
 // ── Public type + callable factory (const/type merge) ────────────────────────
 
 /**
- * Public type alias so consumers write `Task<T, E>` without seeing
+ * Public interface so consumers write `Task<T, E>` without seeing
  * the internal class name. Works in both type and value position:
  *
  *   - Type position: `const t: Task<number, string> = ...`
  *   - Value position: `Task(async () => Ok(42))`, `Task.of(42)`
  */
-export type Task<T, E> = TaskImpl<T, E>;
+export interface Task<T, E> {
+  /** Execute the task. Returns a Promise of Result. */
+  run(): Promise<Result<T, E>>;
+  /** Transform the success value. Does not execute yet. */
+  map<U>(fn: (value: T) => U): Task<U, E>;
+  /** Transform the error value. Does not execute yet. */
+  mapErr<F>(fn: (error: E) => F): Task<T, F>;
+  /** Chain into another async operation on success. Short-circuits on error. */
+  flatMap<U>(fn: (value: T) => Task<U, E>): Task<U, E>;
+  /** Run a side-effect on the success value without altering the Task. */
+  tap(fn: (value: T) => void): Task<T, E>;
+  /** Run a side-effect on the error without altering the Task. */
+  tapErr(fn: (error: E) => void): Task<T, E>;
+  /** Provide a fallback value on error. Returns `Task<T, never>`. */
+  unwrapOr(fallback: T): Task<T, never>;
+  /** Run and extract the value, or use `fallback` on error. Convenience for fire-and-forget. */
+  runGetOr(fallback: T): Promise<T>;
+  /** Run both tasks in parallel, combine results into a tuple. */
+  zip<U>(other: Task<U, E>): Task<[T, U], E>;
+  /** Cache the result of the first `.run()`. Subsequent calls return the same Promise. */
+  memoize(): Task<T, E>;
+  /** Race this task against a timeout. If the task does not complete within `ms` milliseconds, returns `Err(onTimeout())`. */
+  timeout(ms: number, onTimeout: () => E): Task<T, E>;
+  /** Retry the task up to `attempts` times, with optional `delay` (ms) between attempts. */
+  retry(attempts: number, delay?: number): Task<T, E>;
+}
 
 /**
  * Create or manipulate `Task` values.

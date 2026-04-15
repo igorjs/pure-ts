@@ -13,7 +13,8 @@
 
 // ── Detection ───────────────────────────────────────────────────────────────
 
-type PlatformId = "windows" | "posix";
+/** @internal Identifier for the detected platform family. */
+export type PlatformId = "windows" | "posix";
 
 /**
  * Detect the current platform from available globals.

@@ -14,6 +14,17 @@
  * ```
  */
 /** Algebraic data type constructor with exhaustive matching. */
+
+/** Re-exported so public signatures that reference Eq are visible from this entrypoint. */
+export type { Eq } from "../core/eq.js";
+/** Re-exported so public signatures that reference Option are visible from this entrypoint. */
+export type { NoneVariant, Option, OptionMatcher, SomeVariant } from "../core/option.js";
+/** Re-exported so public signatures that reference Ord are visible from this entrypoint. */
+export type { Ord } from "../core/ord.js";
+// ── Cross-module type dependencies ──────────────
+/** Re-exported so public signatures that reference Result are visible from this entrypoint. */
+/** Re-exported so public signatures that reference Ok / Err are visible from this entrypoint. */
+export type { Err, Ok, Result, ResultMatcher } from "../core/result.js";
 export { ADT } from "./adt.js";
 /** Bidirectional codec namespace for encoding and decoding values. */
 /** Interface describing a bidirectional codec that can decode and encode. */
@@ -36,3 +47,6 @@ export type { ImmutableRecord, RecordMethods } from "./record.js";
 /** Describes a validation error at a specific path. */
 /** Interface for a composable validation schema that parses unknown into T. */
 export { Schema, type SchemaError, type SchemaType } from "./schema.js";
+/** Dense, index-stable collection with O(1) insert, remove, and access. */
+/** Opaque reference to an element in a StableVec. */
+export { type Handle, StableVec } from "./stable-vec.js";

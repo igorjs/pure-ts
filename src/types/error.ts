@@ -271,7 +271,48 @@ export interface ErrTypeConstructor<Tag extends string, Code extends string> {
  * type AppError = ErrType<'NotFound', 'NOT_FOUND'> | ErrType<'Forbidden'>;
  * ```
  */
-export type ErrType<Tag extends string, Code extends string = string> = ErrTypeInstance<Tag, Code>;
+export interface ErrType<Tag extends string, Code extends string = string> {
+  /** The literal tag discriminant for this error type. */
+  readonly tag: Tag;
+  /** Alias for tag, matching Error.name convention. */
+  readonly name: Tag;
+  /** The SCREAMING_SNAKE code for this error type. */
+  readonly code: Code;
+  /** Human-readable error message. */
+  readonly message: string;
+  /** Additional key-value metadata attached to this error. */
+  readonly metadata: Readonly<Record<string, unknown>>;
+  /** Optional underlying cause of this error. */
+  readonly cause: unknown | undefined;
+  /** Unix timestamp (ms) when this error was created. */
+  readonly timestamp: number;
+  /** Stack trace captured at construction time, if available. */
+  readonly stack: string | undefined;
+
+  /** Wrap this error in `Err(this)` to create a `Result`. */
+  toResult<T>(): Result<T, ErrType<Tag, Code>>;
+
+  /** Serialize all fields except `stack`. Includes `cause` only if defined. */
+  toJSON(): {
+    /** The tag discriminant. */
+    readonly tag: Tag;
+    /** Alias for tag. */
+    readonly name: Tag;
+    /** The error code. */
+    readonly code: Code;
+    /** The error message. */
+    readonly message: string;
+    /** Attached metadata. */
+    readonly metadata: Readonly<Record<string, unknown>>;
+    /** Creation timestamp in milliseconds. */
+    readonly timestamp: number;
+    /** Underlying cause, if present. */
+    readonly cause?: unknown;
+  };
+
+  /** Format as `'Tag(CODE): message'`. Appends cause if present. */
+  toString(): string;
+}
 
 // ── Factory + namespace (const merges with type above) ───────────────────────
 

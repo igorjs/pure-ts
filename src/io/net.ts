@@ -14,6 +14,7 @@
  * All runtime access is structural: no type declarations imported.
  */
 
+import { makeTask, type TaskLike } from "../async/task-like.js";
 import type { Result } from "../core/result.js";
 import { Err, Ok } from "../core/result.js";
 import { ErrType, type ErrTypeConstructor } from "../types/error.js";
@@ -22,15 +23,6 @@ import { ErrType, type ErrTypeConstructor } from "../types/error.js";
 
 /** TCP connection or communication failed. */
 export const NetError: ErrTypeConstructor<"NetError", string> = ErrType("NetError");
-
-// -- Task-like ---------------------------------------------------------------
-
-/** Task-like interface for lazy async TCP operations. */
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
-const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
 
 // -- TCP connection ----------------------------------------------------------
 
@@ -101,7 +93,7 @@ const getNodeNet = async (): Promise<NodeNet | null> => {
 
 const wrapDenoConn = (conn: DenoTcpConn): TcpConnection => ({
   send: (data: string | Uint8Array): TaskLike<void, ErrType<"NetError">> =>
-    mkTask(async () => {
+    makeTask(async () => {
       try {
         const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
         await conn.write(bytes);
@@ -112,7 +104,7 @@ const wrapDenoConn = (conn: DenoTcpConn): TcpConnection => ({
     }),
 
   receive: (): TaskLike<Uint8Array, ErrType<"NetError">> =>
-    mkTask(async () => {
+    makeTask(async () => {
       try {
         const buf = new Uint8Array(4096);
         const n = await conn.read(buf);
@@ -132,7 +124,7 @@ const wrapDenoConn = (conn: DenoTcpConn): TcpConnection => ({
 
 const wrapNodeSocket = (socket: NodeSocket): TcpConnection => ({
   send: (data: string | Uint8Array): TaskLike<void, ErrType<"NetError">> =>
-    mkTask(
+    makeTask(
       () =>
         new Promise<Result<void, ErrType<"NetError">>>(resolve => {
           socket.write(data, (err?: Error) => {
@@ -146,7 +138,7 @@ const wrapNodeSocket = (socket: NodeSocket): TcpConnection => ({
     ),
 
   receive: (): TaskLike<Uint8Array, ErrType<"NetError">> =>
-    mkTask(
+    makeTask(
       () =>
         new Promise<Result<Uint8Array, ErrType<"NetError">>>(resolve => {
           const onData = (chunk: Uint8Array): void => {
@@ -244,5 +236,5 @@ export const Net: {
   connect: (options: {
     host: string;
     port: number;
-  }): TaskLike<TcpConnection, ErrType<"NetError">> => mkTask(() => connectTcp(options)),
+  }): TaskLike<TcpConnection, ErrType<"NetError">> => makeTask(() => connectTcp(options)),
 };

@@ -14,6 +14,7 @@
  * declarations imported.
  */
 
+import { makeTask, type TaskLike } from "../async/task-like.js";
 import type { Result } from "../core/result.js";
 import { Err, Ok } from "../core/result.js";
 import { Eol } from "../runtime/platform.js";
@@ -23,14 +24,6 @@ import { ErrType, type ErrTypeConstructor } from "../types/error.js";
 
 /** File system operation failed. */
 export const FileError: ErrTypeConstructor<"FileError", string> = ErrType("FileError");
-
-// ── Task-like ───────────────────────────────────────────────────────────────
-
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
-const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
 
 // ── File stat result ────────────────────────────────────────────────────────
 
@@ -443,16 +436,16 @@ export const File: {
   /** Create a temporary directory with optional prefix. */
   readonly tempDir: (prefix?: string) => TaskLike<string, ErrType<"FileError">>;
 } = {
-  read: path => mkTask(() => readFile(path)),
-  write: (path, content) => mkTask(() => writeFile(path, content)),
-  append: (path, content) => mkTask(() => appendFile(path, content)),
-  exists: path => mkTask(() => fileExists(path)),
-  makeDir: path => mkTask(() => makeDir(path)),
-  remove: path => mkTask(() => removeFile(path)),
-  removeDir: path => mkTask(() => removeDir(path)),
-  list: path => mkTask(() => listDir(path)),
-  stat: path => mkTask(() => statFile(path)),
-  copy: (src, dest) => mkTask(() => copyFile(src, dest)),
-  rename: (oldPath, newPath) => mkTask(() => renameFile(oldPath, newPath)),
-  tempDir: prefix => mkTask(() => tempDir(prefix)),
+  read: path => makeTask(() => readFile(path)),
+  write: (path, content) => makeTask(() => writeFile(path, content)),
+  append: (path, content) => makeTask(() => appendFile(path, content)),
+  exists: path => makeTask(() => fileExists(path)),
+  makeDir: path => makeTask(() => makeDir(path)),
+  remove: path => makeTask(() => removeFile(path)),
+  removeDir: path => makeTask(() => removeDir(path)),
+  list: path => makeTask(() => listDir(path)),
+  stat: path => makeTask(() => statFile(path)),
+  copy: (src, dest) => makeTask(() => copyFile(src, dest)),
+  rename: (oldPath, newPath) => makeTask(() => renameFile(oldPath, newPath)),
+  tempDir: prefix => makeTask(() => tempDir(prefix)),
 };

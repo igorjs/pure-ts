@@ -5,8 +5,9 @@
  * with a chainable monad. This forces callers to handle absence rather than
  * silently propagating `undefined` through pipelines.
  *
- * Two concrete classes (`SomeImpl`, `NoneImpl`) implement `OptionMethods`.
- * `None` is a singleton to avoid unnecessary allocations.
+ * The public API exposes two variant interfaces (`SomeVariant`, `NoneVariant`)
+ * whose union forms `Option<T>`. Private implementation classes back them at
+ * runtime. `None` is a singleton to avoid unnecessary allocations.
  *
  * The `Option` const/type merge provides `Option.fromNullable()` in value
  * position and `Option<T>` in type position, paralleling `Result`.
@@ -14,6 +15,111 @@
 
 import type { Result } from "./result.js";
 import { Err, Ok } from "./result.js";
+
+/** Pattern-match arms for {@link Option.match}. */
+export interface OptionMatcher<T, U> {
+  /** Handler for the Some variant. */
+  readonly Some: (value: T) => U;
+  /** Handler for the None variant. */
+  readonly None: () => U;
+}
+
+/**
+ * The present variant of {@link Option}.
+ *
+ * Wraps a value of type `T`. Provides monadic chaining (`map`, `flatMap`),
+ * safe extraction (`unwrap`, `unwrapOr`), and pattern matching (`match`).
+ *
+ * Construct via the {@link Some} factory rather than instantiating directly.
+ */
+export interface SomeVariant<T> {
+  /** Discriminant tag for pattern matching. */
+  readonly tag: "Some";
+  /** The wrapped value. */
+  readonly value: T;
+  /** Whether this is a Some variant. Always true. */
+  readonly isSome: true;
+  /** Whether this is a None variant. Always false. */
+  readonly isNone: false;
+  /** Apply `fn` to the value, returning a new `Some`. */
+  map<U>(fn: (value: T) => U): Option<U>;
+  /** Chain into a dependent computation that may produce `None`. */
+  flatMap<U>(fn: (value: T) => Option<U>): Option<U>;
+  /** Keep the value only if `predicate` holds, otherwise return `None`. */
+  filter(predicate: (value: T) => boolean): Option<T>;
+  /** Run a side-effect on the value without altering the Option. */
+  tap(fn: (value: T) => void): Option<T>;
+  /** Extract the value. */
+  unwrap(): T;
+  /** Return the value, ignoring the fallback. */
+  unwrapOr(_fallback: T): T;
+  /** Return the value, ignoring the recovery function. */
+  unwrapOrElse(_fn: () => T): T;
+  /** Exhaustively handle both variants. */
+  match<U>(m: OptionMatcher<T, U>): U;
+  /** Convert to `Ok(value)`. */
+  toResult<E>(_error: E): Result<T, E>;
+  /** Combine two `Some` values into a tuple, short-circuiting on `None`. */
+  zip<U>(other: Option<U>): Option<[T, U]>;
+  /**
+   * Applicative apply: apply a wrapped function to this value.
+   *
+   * If `fnOption` is `Some(fn)`, returns `Some(fn(this.value))`.
+   * If `fnOption` is `None`, returns `None`.
+   */
+  ap<U>(fnOption: Option<(value: T) => U>): Option<U>;
+  /** Return this `Some`, ignoring the alternative. */
+  or(_other: Option<T>): Option<T>;
+  /** Serialize as `{ tag: 'Some', value: T }`. */
+  toJSON(): { tag: "Some"; value: T };
+  /** Human-readable string representation. */
+  toString(): string;
+}
+
+/**
+ * The absent variant of {@link Option}.
+ *
+ * All value-channel operations (`map`, `flatMap`, `unwrap`) short-circuit,
+ * preserving the `None`.
+ *
+ * Use the singleton {@link None} constant rather than instantiating directly.
+ */
+export interface NoneVariant<T> {
+  /** Discriminant tag for pattern matching. */
+  readonly tag: "None";
+  /** Whether this is a Some variant. Always false. */
+  readonly isSome: false;
+  /** Whether this is a None variant. Always true. */
+  readonly isNone: true;
+  /** No-op on `None`. */
+  map<U>(_fn: (value: T) => U): Option<U>;
+  /** No-op on `None`. */
+  flatMap<U>(_fn: (value: T) => Option<U>): Option<U>;
+  /** No-op on `None`. */
+  filter(_predicate: (value: T) => boolean): Option<T>;
+  /** No-op on `None`. */
+  tap(_fn: (value: T) => void): Option<T>;
+  /** Throws: there is no value to extract from `None`. */
+  unwrap(): never;
+  /** Return the fallback since this is `None`. */
+  unwrapOr(fallback: T): T;
+  /** Compute and return the fallback since this is `None`. */
+  unwrapOrElse(fn: () => T): T;
+  /** Exhaustively handle both variants. */
+  match<U>(m: OptionMatcher<T, U>): U;
+  /** Convert to `Err(error)` since the value is absent. */
+  toResult<E>(error: E): Result<T, E>;
+  /** Short-circuit: return `None`. */
+  zip<U>(_other: Option<U>): Option<[T, U]>;
+  /** Short-circuit: return `None`. */
+  ap<U>(_fnOption: Option<(value: T) => U>): Option<U>;
+  /** Return the alternative since this is `None`. */
+  or(other: Option<T>): Option<T>;
+  /** Serialize as `{ tag: 'None' }`. */
+  toJSON(): { tag: "None" };
+  /** Human-readable string representation. */
+  toString(): string;
+}
 
 /**
  * A discriminated union representing a value that may or may not exist.
@@ -27,63 +133,10 @@ import { Err, Ok } from "./result.js";
  * const upper = name.map(s => s.toUpperCase()).unwrapOr('ANON');
  * ```
  */
-export type Option<T> = SomeImpl<T> | NoneImpl<T>;
+export type Option<T> = SomeVariant<T> | NoneVariant<T>;
 
-/** Pattern-match arms for {@link Option.match}. */
-export interface OptionMatcher<T, U> {
-  /** Handler for the Some variant. */
-  readonly Some: (value: T) => U;
-  /** Handler for the None variant. */
-  readonly None: () => U;
-}
-
-/**
- * Shared contract for both `Some` and `None` variants.
- *
- * Ensures both classes expose identical method signatures so callers can
- * chain operations without narrowing first. `None` methods are no-ops
- * that propagate absence.
- */
-interface OptionMethods<T> {
-  /** Transform the value if present. */
-  map<U>(fn: (value: T) => U): Option<U>;
-  /** Chain into a dependent computation that may produce None. */
-  flatMap<U>(fn: (value: T) => Option<U>): Option<U>;
-  /** Keep the value only if the predicate holds. */
-  filter(predicate: (value: T) => boolean): Option<T>;
-  /** Run a side-effect on the value without altering the Option. */
-  tap(fn: (value: T) => void): Option<T>;
-  /** Extract the value or throw if None. */
-  unwrap(): T;
-  /** Extract the value or return the fallback. */
-  unwrapOr(_fallback: T): T;
-  /** Extract the value or compute a fallback. */
-  unwrapOrElse(_fn: () => T): T;
-  /** Pattern match on Some or None. */
-  match<U>(m: OptionMatcher<T, U>): U;
-  /** Convert to Result: Some becomes Ok, None becomes Err with the given error. */
-  toResult<E>(_error: E): Result<T, E>;
-  /** Pair this value with another Option's value. */
-  zip<U>(other: Option<U>): Option<[T, U]>;
-  /** Apply a wrapped function to this value. */
-  ap<U>(fnOption: Option<(value: T) => U>): Option<U>;
-  /** Return this Option if Some, otherwise the other. */
-  or(_other: Option<T>): Option<T>;
-  /** Serialize to a JSON-safe tagged object. */
-  toJSON(): { tag: "Some"; value: T } | { tag: "None" };
-  /** Human-readable string representation. */
-  toString(): string;
-}
-
-/**
- * The present variant of {@link Option}.
- *
- * Wraps a value of type `T`. Provides monadic chaining (`map`, `flatMap`),
- * safe extraction (`unwrap`, `unwrapOr`), and pattern matching (`match`).
- *
- * Construct via the {@link Some} factory rather than `new SomeImpl(...)`.
- */
-export class SomeImpl<T> implements OptionMethods<T> {
+/** @internal Runtime backing class for {@link SomeVariant}. */
+class SomeImpl<T> implements SomeVariant<T> {
   /** Discriminant tag for pattern matching. */
   readonly tag = "Some" as const;
   constructor(/** The wrapped value. */ readonly value: T) {}
@@ -161,15 +214,8 @@ export class SomeImpl<T> implements OptionMethods<T> {
   }
 }
 
-/**
- * The absent variant of {@link Option}.
- *
- * All value-channel operations (`map`, `flatMap`, `unwrap`) short-circuit,
- * preserving the `None`.
- *
- * Use the singleton {@link None} constant rather than `new NoneImpl()`.
- */
-export class NoneImpl<T> implements OptionMethods<T> {
+/** @internal Runtime backing class for {@link NoneVariant}. */
+class NoneImpl<T> implements NoneVariant<T> {
   /** Discriminant tag for pattern matching. */
   readonly tag = "None" as const;
 

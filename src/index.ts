@@ -50,7 +50,14 @@ import type { Result, ResultMatcher } from "./core/result.js";
 /** Discriminated union representing a value that may or may not exist. */
 /** Pattern-match arms for Option.match. */
 /** Present variant constructor: wrap a value in Option. */
-export { None, Option, type OptionMatcher, Some } from "./core/option.js";
+export {
+  None,
+  type NoneVariant,
+  Option,
+  type OptionMatcher,
+  Some,
+  type SomeVariant,
+} from "./core/option.js";
 /** Create a failed Result wrapping an error value. */
 /** Create a successful Result wrapping a value. */
 /** Discriminated union representing success (Ok) or failure (Err). */
@@ -72,6 +79,7 @@ export { Err, Ok, Result, type ResultMatcher, tryCatch } from "./core/result.js"
  */
 /** Pattern match on a Result or Option, handling each variant. */
 export function match<T, E, U>(value: Result<T, E>, matcher: ResultMatcher<T, E, U>): U;
+/** Pattern match on an Option, handling Some and None variants. */
 export function match<T, U>(value: Option<T>, matcher: OptionMatcher<T, U>): U;
 export function match(value: { match(m: object): unknown }, matcher: object): unknown {
   return value.match(matcher);
@@ -138,12 +146,22 @@ export {
 } from "./async/rate-limiter.js";
 /** Configurable retry policy namespace with backoff strategies. */
 /** An immutable retry policy describing how and when to retry. */
-export { Retry, type RetryPolicy } from "./async/retry.js";
+export {
+  Retry,
+  type RetryPolicy,
+} from "./async/retry.js";
 /** Mutual exclusion lock allowing only one task at a time. */
 /** A mutex instance with acquire and wrap operations. */
 /** Counting semaphore namespace for concurrency control. */
 /** A semaphore instance with acquire, wrap, available, and pending operations. */
-export { Mutex, type MutexInstance, Semaphore, type SemaphoreInstance } from "./async/semaphore.js";
+/** A release function returned after acquiring a semaphore permit. */
+export {
+  Mutex,
+  type MutexInstance,
+  type Release,
+  Semaphore,
+  type SemaphoreInstance,
+} from "./async/semaphore.js";
 /** Error returned when a state machine transition is invalid. */
 /** Typed finite state machine with validated transitions. */
 export { InvalidTransition, StateMachine } from "./async/state-machine.js";
@@ -151,6 +169,9 @@ export { InvalidTransition, StateMachine } from "./async/state-machine.js";
 export { Stream } from "./async/stream.js";
 /** Lazy, composable async computation that returns Result on run. */
 export { Task } from "./async/task.js";
+/** Shared structural interface for Task-shaped values with a `.run()` method. */
+/** Create a TaskLike from a run function. */
+export { makeTask, type TaskLike } from "./async/task-like.js";
 /** Error returned when a deadline is exceeded. */
 /** Timer namespace for sleep, interval, delay, and deadline operations. */
 export { TimeoutError, Timer } from "./async/timer.js";
@@ -162,11 +183,13 @@ export { TimeoutError, Timer } from "./async/timer.js";
 /** Server returned a non-2xx status code. */
 /** Network-level failure (DNS, timeout, connection refused). */
 /** Response body could not be parsed (JSON, text, etc.). */
+/** Request options for the HTTP client (headers, body, signal). */
 export {
   Client,
   type ClientError,
   type ClientInstance,
   type ClientOptions,
+  type ClientRequestOptions,
   type ClientResponse,
   HttpError,
   NetworkError,
@@ -212,6 +235,9 @@ export type { ImmutableRecord, RecordMethods } from "./data/record.js";
 /** Describes a validation error at a specific path. */
 /** Interface for a composable validation schema that parses unknown into T. */
 export { Schema, type SchemaError, type SchemaType } from "./data/schema.js";
+/** Dense, index-stable collection with O(1) insert, remove, and access. */
+/** Opaque reference to an element in a StableVec. */
+export { type Handle, StableVec } from "./data/stable-vec.js";
 /** Structured cloning namespace using the web standard algorithm. */
 /** Error returned when a deep clone operation fails. */
 export { Clone, CloneError } from "./io/clone.js";
@@ -224,7 +250,8 @@ export { Crypto, CryptoError } from "./io/crypto.js";
 /** Cross-runtime DNS resolution namespace returning Task. */
 /** Error returned when DNS resolution fails. */
 /** A resolved DNS address with IP family. */
-export { Dns, DnsError, type DnsRecord } from "./io/dns.js";
+/** DNS record type for resolution queries. */
+export { Dns, DnsError, type DnsRecord, type DnsType } from "./io/dns.js";
 /** Base64, hex, and UTF-8 encoding and decoding namespace. */
 /** Error returned when an encoding or decoding operation fails. */
 export { Encoding, EncodingError } from "./io/encoding.js";
@@ -248,11 +275,22 @@ export { Command, CommandError, type CommandOptions, type CommandResult } from "
 /** Error returned when URL parsing or construction fails. */
 export { Url, UrlError } from "./io/url.js";
 /** Application lifecycle with graceful shutdown and error boundary. */
-export { Program } from "./program.js";
+/** Configuration options for Program (teardown timeout). */
+export { Program, type ProgramOptions } from "./program.js";
 /** Typed environment variable validation and access. */
 export { Config } from "./runtime/config.js";
 /** Structured logger with configurable levels and formatters. */
-export { Logger } from "./runtime/logger.js";
+/** Configuration options for creating a Logger. */
+/** Log severity levels, ordered from least to most severe. */
+/** A structured log record passed to log sinks. */
+/** A log sink function that receives formatted log entries. */
+export {
+  Logger,
+  type LoggerOptions,
+  type LogLevel,
+  type LogRecord,
+  type LogSink,
+} from "./runtime/logger.js";
 /** Cross-runtime OS information (hostname, arch, memory). */
 export { Os } from "./runtime/os.js";
 /** Line ending constants and normalization. */
@@ -262,7 +300,8 @@ export { Os } from "./runtime/os.js";
 export { Eol, Path, type PathParts, Platform } from "./runtime/platform.js";
 /** Cross-runtime process info, cwd, env, args, and exit namespace. */
 /** Error returned when a process operation fails. */
-export { Process, ProcessError } from "./runtime/process.js";
+/** Memory usage statistics returned by Process.memoryUsage. */
+export { type MemoryUsage, Process, ProcessError } from "./runtime/process.js";
 /** Failed to read the request body. */
 /** Request context passed to route handlers with req, url, and params. */
 /** Compose multiple middleware functions into a single middleware. */
@@ -322,10 +361,12 @@ export type { Type } from "./types/nominal.js";
 /** WebSocket routing and handler definitions namespace. */
 /** A WebSocket connection with typed send and close operations. */
 /** Event handlers for a WebSocket route (onOpen, onMessage, onClose, onError). */
+/** A WebSocket route definition mapping a URL pattern to a handler. */
 /** A WebSocket router that holds route definitions with pattern matching. */
 export {
   WebSocket,
   type WebSocketConnection,
   type WebSocketHandler,
+  type WebSocketRoute,
   type WebSocketRouter,
 } from "./ws.js";

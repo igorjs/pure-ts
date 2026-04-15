@@ -11,6 +11,7 @@
  * available in Node 22+, Deno, and Bun with no imports required.
  */
 
+import { makeTask, type TaskLike } from "../async/task-like.js";
 import type { Result } from "../core/result.js";
 import { Err, Ok } from "../core/result.js";
 import { ErrType, type ErrTypeConstructor } from "../types/error.js";
@@ -19,15 +20,6 @@ import { ErrType, type ErrTypeConstructor } from "../types/error.js";
 
 /** Cryptographic operation failed. */
 export const CryptoError: ErrTypeConstructor<"CryptoError", string> = ErrType("CryptoError");
-
-// ── Task-like ───────────────────────────────────────────────────────────────
-
-/** Task-like interface. */
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
-const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
 
 // ── Structural type for Web Crypto API ──────────────────────────────────────
 // Why: tsconfig uses "lib": ["es2024"] without DOM types. Access crypto
@@ -89,7 +81,7 @@ export const Crypto: {
   },
 
   hash: (algorithm: "SHA-1" | "SHA-256" | "SHA-384" | "SHA-512", data: string | Uint8Array) =>
-    mkTask(async () => {
+    makeTask(async () => {
       try {
         const input = typeof data === "string" ? new TextEncoder().encode(data) : data;
         const buffer = await getCrypto().subtle.digest(algorithm, input);

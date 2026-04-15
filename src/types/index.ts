@@ -15,6 +15,19 @@
  */
 /** Cron expression parser and validator namespace. */
 /** A validated cron expression string (5-field standard format). */
+
+/** Re-exported so public signatures that reference Eq are visible from this entrypoint. */
+export type { Eq } from "../core/eq.js";
+/** Re-exported so public signatures that reference Option are visible from this entrypoint. */
+export type { NoneVariant, Option, OptionMatcher, SomeVariant } from "../core/option.js";
+/** Re-exported so public signatures that reference Ord are visible from this entrypoint. */
+export type { Ord } from "../core/ord.js";
+// ── Cross-module type dependencies ──────────────
+/** Re-exported so public signatures that reference Result are visible from this entrypoint. */
+/** Re-exported so public signatures that reference Ok / Err are visible from this entrypoint. */
+export type { Err, Ok, Result, ResultMatcher } from "../core/result.js";
+/** Re-exported so public signatures that reference SchemaError are visible from this entrypoint. */
+export type { SchemaError } from "../data/schema.js";
 export { Cron, type CronExpression } from "./cron.js";
 /** Type-safe duration namespace with unit conversions. */
 export { Duration } from "./duration.js";

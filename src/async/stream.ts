@@ -22,14 +22,9 @@ import { castErr, castOk, Err, Ok } from "../core/result.js";
 import type { Duration } from "../types/duration.js";
 import { Duration as D } from "../types/duration.js";
 
+import { makeTask, type TaskLike } from "./task-like.js";
+
 // ── Stream interface ────────────────────────────────────────────────────────
-
-/** Task-like for collection operations, avoiding direct Task import. */
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
-const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
 
 /**
  * A lazy async sequence that produces `Result<T, E>` values.
@@ -345,7 +340,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
     ),
 
   collect: (): TaskLike<readonly T[], E> =>
-    mkTask(async () => {
+    makeTask(async () => {
       const values: T[] = [];
       for await (const r of source()) {
         if (r.isErr) return castErr(r);
@@ -355,7 +350,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
     }),
 
   forEach: (fn: (value: T) => void): TaskLike<void, E> =>
-    mkTask(async () => {
+    makeTask(async () => {
       for await (const r of source()) {
         if (r.isErr) return castErr(r);
         fn(r.value);
@@ -364,7 +359,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
     }),
 
   reduce: <U>(fn: (acc: U, value: T) => U, init: U): TaskLike<U, E> =>
-    mkTask(async () => {
+    makeTask(async () => {
       let acc = init;
       for await (const r of source()) {
         if (r.isErr) return castErr(r);
@@ -374,7 +369,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
     }),
 
   first: (): TaskLike<Option<T>, E> =>
-    mkTask(async () => {
+    makeTask(async () => {
       for await (const r of source()) {
         if (r.isErr) return castErr(r);
         return Ok(Some(r.value));
@@ -418,7 +413,7 @@ const createStream = <T, E>(source: () => AsyncIterable<Result<T, E>>): Stream<T
   groupBy: <K extends string>(
     fn: (value: T) => K,
   ): TaskLike<Readonly<Record<K, readonly T[]>>, E> =>
-    mkTask(async () => {
+    makeTask(async () => {
       const groups: Record<string, T[]> = {};
       for await (const r of source()) {
         if (r.isErr) return castErr(r);

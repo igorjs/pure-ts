@@ -17,19 +17,12 @@
 import type { Result } from "../core/result.js";
 import { Err, Ok } from "../core/result.js";
 import { ErrType, type ErrTypeConstructor } from "../types/error.js";
+import { makeTask, type TaskLike } from "./task-like.js";
 
 // ── Error types ─────────────────────────────────────────────────────────────
 
 /** Resource pool operation failed. */
 export const PoolError: ErrTypeConstructor<"PoolError", string> = ErrType("PoolError");
-
-// ── Task-like ───────────────────────────────────────────────────────────────
-
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
-const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -225,10 +218,10 @@ const createPool = <T>(options: PoolOptions<T>): PoolInstance<T> => {
   };
 
   const acquire = (): TaskLike<PooledResource<T>, ErrType<"PoolError", string>> =>
-    mkTask(acquireImpl);
+    makeTask(acquireImpl);
 
   const use = <R>(fn: (resource: T) => Promise<R>): TaskLike<R, ErrType<"PoolError", string>> =>
-    mkTask(async (): Promise<Result<R, ErrType<"PoolError", string>>> => {
+    makeTask(async (): Promise<Result<R, ErrType<"PoolError", string>>> => {
       const acquireResult = await acquireImpl();
       if (acquireResult.isErr) {
         return Err(acquireResult.error);

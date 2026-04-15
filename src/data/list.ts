@@ -86,7 +86,7 @@ export interface ListMethods<T> {
 }
 
 /**
- * Base array type with conflicting methods removed.
+ * @internal Base array type with conflicting methods removed.
  *
  * `ReadonlyArray` defines `find`, `map`, `filter`, etc. with signatures that
  * return raw values. `ListMethods` overrides them to return `Option` or

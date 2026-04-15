@@ -91,9 +91,12 @@ const parseArgv = (argv: readonly string[]): Record<string, string> => {
 // -- Memory usage type -------------------------------------------------------
 
 /** Heap and RSS memory usage. */
-interface MemoryUsage {
+export interface MemoryUsage {
+  /** Bytes of V8 heap currently in use. */
   readonly heapUsed: number;
+  /** Total bytes of V8 heap allocated. */
   readonly heapTotal: number;
+  /** Resident set size in bytes. */
   readonly rss: number;
 }
 

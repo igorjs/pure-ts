@@ -17,12 +17,9 @@ import { Ok } from "../core/result.js";
 import type { Duration } from "../types/duration.js";
 import { Duration as D } from "../types/duration.js";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+import type { TaskLike } from "./task-like.js";
 
-/** Task-like interface. */
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
+// ── Types ───────────────────────────────────────────────────────────────────
 
 interface CacheEntry<V> {
   value: V;

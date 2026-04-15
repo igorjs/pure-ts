@@ -136,10 +136,29 @@ class LazyImpl<T> implements Disposable {
 // ── Public type + callable factory (const/type merge) ────────────────────────
 
 /**
- * Public type alias so consumers write `Lazy<T>` without seeing
+ * Public interface so consumers write `Lazy<T>` without seeing
  * the internal class name.
  */
-export type Lazy<T> = LazyImpl<T>;
+export interface Lazy<T> extends Disposable {
+  /** Access the value, evaluating the thunk on first call. Throws if disposed. */
+  readonly value: T;
+  /** Whether the lazy value has been computed. */
+  readonly isEvaluated: boolean;
+  /** Whether this Lazy has been disposed. */
+  readonly isDisposed: boolean;
+  /** Transform the lazy value. Returns a new Lazy (still deferred). */
+  map<U>(fn: (value: T) => U): Lazy<U>;
+  /** Chain into another lazy computation. */
+  flatMap<U>(fn: (value: T) => Lazy<U>): Lazy<U>;
+  /** Get the value, or a fallback if the thunk throws. */
+  unwrapOr(fallback: T): T;
+  /** Convert to Option: `Some` if evaluates successfully, `None` if the thunk throws. */
+  toOption(): Option<T>;
+  /** Convert to Result: `Ok` if evaluates successfully, `Err` if the thunk throws. */
+  toResult<E>(onError: (e: unknown) => E): Result<T, E>;
+  /** String representation showing evaluation state. */
+  toString(): string;
+}
 
 /**
  * Create or inspect `Lazy` values.

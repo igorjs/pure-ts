@@ -14,11 +14,12 @@
 import type { Result } from "../core/result.js";
 import type { Duration } from "../types/duration.js";
 import { Duration as D } from "../types/duration.js";
+import type { TaskLike } from "./task-like.js";
 
 // ── Policy types ────────────────────────────────────────────────────────────
 
-/** The backoff strategy for retry delays. */
-type BackoffStrategy = "fixed" | "exponential" | "linear";
+/** @internal The backoff strategy for retry delays. */
+export type BackoffStrategy = "fixed" | "exponential" | "linear";
 
 /**
  * An immutable retry policy describing how and when to retry.
@@ -73,7 +74,7 @@ const sleep = (ms: number): Promise<void> => new Promise<void>(resolve => setTim
 // ── Builder ─────────────────────────────────────────────────────────────────
 
 /**
- * Builder for constructing {@link RetryPolicy} instances.
+ * @internal Builder for constructing {@link RetryPolicy} instances.
  *
  * Each method returns a new builder (immutable). Call `.build()` to
  * produce the final frozen policy.
@@ -88,7 +89,7 @@ const sleep = (ms: number): Promise<void> => new Promise<void>(resolve => setTim
  *   .build();
  * ```
  */
-interface RetryPolicyBuilder {
+export interface RetryPolicyBuilder {
   /** Set the maximum number of attempts (including the initial try). */
   readonly maxAttempts: (n: number) => RetryPolicyBuilder;
   /** Set the base delay between retries (fixed backoff). */
@@ -142,12 +143,8 @@ const createPolicyBuilder = (config: BuilderConfig): RetryPolicyBuilder =>
 
 // ── Task integration ────────────────────────────────────────────────────────
 
-// Import Task lazily to avoid circular dependency issues.
-// Task is in the same package, so this is safe.
-type TaskLike<T, E> = {
-  readonly run: () => Promise<Result<T, E>>;
-};
-type TaskFactory = <T, E>(run: () => Promise<Result<T, E>>) => TaskLike<T, E>;
+/** @internal A factory function that creates a TaskLike from a run function. */
+export type TaskFactory = <T, E>(run: () => Promise<Result<T, E>>) => TaskLike<T, E>;
 
 /** Apply a retry policy to a task-like computation. */
 const applyRetry = <T, E>(

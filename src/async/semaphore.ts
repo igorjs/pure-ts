@@ -11,16 +11,12 @@
  */
 
 import type { Result } from "../core/result.js";
+import type { TaskLike } from "./task-like.js";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-/** Task-like interface to avoid direct Task import. */
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
 /** A release function returned after acquiring a permit. */
-type Release = () => void;
+export type Release = () => void;
 
 /**
  * A counting semaphore for concurrency control.

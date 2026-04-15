@@ -13,6 +13,7 @@
  *
  */
 
+import { makeTask, type TaskLike } from "../async/task-like.js";
 import type { Result } from "../core/result.js";
 import { Err, Ok } from "../core/result.js";
 import { ErrType, type ErrTypeConstructor } from "../types/error.js";
@@ -21,15 +22,6 @@ import { ErrType, type ErrTypeConstructor } from "../types/error.js";
 
 /** Subprocess execution failed (command not found, timeout, spawn error). */
 export const CommandError: ErrTypeConstructor<"CommandError", string> = ErrType("CommandError");
-
-// -- Task-like ---------------------------------------------------------------
-
-/** Task-like interface for lazy async subprocess execution. */
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
-const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
 
 // -- Command result ----------------------------------------------------------
 
@@ -209,7 +201,7 @@ const execDeno = (
   args: readonly string[],
   options: CommandOptions,
 ): TaskLike<CommandResult, ErrType<"CommandError">> =>
-  mkTask(async () => {
+  makeTask(async () => {
     try {
       const spawnOpts = buildSpawnOpts(options);
       const decoder = new TextDecoder();
@@ -275,7 +267,7 @@ const execBun = (
   args: readonly string[],
   options: CommandOptions,
 ): TaskLike<CommandResult, ErrType<"CommandError">> =>
-  mkTask(async () => {
+  makeTask(async () => {
     try {
       const spawnOpts = buildSpawnOpts(options);
 
@@ -355,7 +347,7 @@ const execNode = (
   args: readonly string[],
   options: CommandOptions,
 ): TaskLike<CommandResult, ErrType<"CommandError">> =>
-  mkTask(async () => {
+  makeTask(async () => {
     try {
       const cp: NodeChildProcess = await (Function(
         'return import("node:child_process")',

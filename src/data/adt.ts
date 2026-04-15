@@ -136,7 +136,7 @@ export const ADT = <Config extends Record<string, VariantDef>>(
 /** Type-level utilities for algebraic data types. */
 export namespace ADT {
   /** Helper: extracts the return type of a constructor function. */
-  type ConstructorReturn<T> = T extends (...args: never[]) => infer R ? R : never;
+  export type ConstructorReturn<T> = T extends (...args: never[]) => infer R ? R : never;
 
   /** Extract the full discriminated union type from an ADT value. */
   export type Infer<T> = ConstructorReturn<T[keyof Omit<T, "is"> & string]>;

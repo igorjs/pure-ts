@@ -18,20 +18,12 @@ import { Duration as D } from "../types/duration.js";
 import { ErrType, type ErrTypeConstructor } from "../types/error.js";
 import type { Stream } from "./stream.js";
 import { Stream as S } from "./stream.js";
+import { makeTask, type TaskLike } from "./task-like.js";
 
 // ── Error types ─────────────────────────────────────────────────────────────
 
 /** A deadline was exceeded before the task completed. */
 export const TimeoutError: ErrTypeConstructor<"TimeoutError", string> = ErrType("TimeoutError");
-
-// ── Task-like ───────────────────────────────────────────────────────────────
-
-/** Task-like interface. */
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
-const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
 
 // ── Structural type for performance API ─────────────────────────────────────
 // Why: tsconfig uses "lib": ["es2024"] without DOM types. Access
@@ -85,7 +77,7 @@ export const Timer: {
   readonly now: () => number;
 } = {
   sleep: (duration: Duration) =>
-    mkTask(async () => {
+    makeTask(async () => {
       await sleep(D.toMilliseconds(duration));
       return Ok(undefined);
     }),
@@ -93,13 +85,13 @@ export const Timer: {
   interval: (period: Duration): Stream<number, never> => S.interval(period),
 
   delay: <T, E>(duration: Duration, task: TaskLike<T, E>) =>
-    mkTask(async () => {
+    makeTask(async () => {
       await sleep(D.toMilliseconds(duration));
       return task.run();
     }),
 
   deadline: <T, E>(duration: Duration, task: TaskLike<T, E>) =>
-    mkTask(() => {
+    makeTask(() => {
       const ms = D.toMilliseconds(duration);
       const timeoutPromise = new Promise<Result<T, E | ErrType<"TimeoutError">>>(resolve => {
         setTimeout(

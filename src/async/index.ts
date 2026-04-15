@@ -16,6 +16,23 @@
 /** In-memory cache namespace with TTL and optional LRU eviction. */
 /** A cache instance with get, set, delete, and cache-aside operations. */
 /** Configuration options for creating a Cache. */
+
+/** Re-exported so public signatures that reference Eq are visible from this entrypoint. */
+export type { Eq } from "../core/eq.js";
+/** Re-exported so public signatures that reference Option are visible from this entrypoint. */
+export type { NoneVariant, Option, OptionMatcher, SomeVariant } from "../core/option.js";
+/** Re-exported so public signatures that reference Ord are visible from this entrypoint. */
+export type { Ord } from "../core/ord.js";
+// ── Cross-module type dependencies ──────────────
+/** Re-exported so public signatures that reference Result are visible from this entrypoint. */
+/** Re-exported so public signatures that reference Ok / Err are visible from this entrypoint. */
+export type { Err, Ok, Result, ResultMatcher } from "../core/result.js";
+/** Re-exported so public signatures that reference Duration are visible from this entrypoint. */
+export type { Duration } from "../types/duration.js";
+/** Re-exported so public signatures that reference ErrType / ErrTypeConstructor are visible from this entrypoint. */
+export type { ErrType, ErrTypeConstructor } from "../types/error.js";
+/** Re-exported so public signatures that reference Type (nominal) are visible from this entrypoint. */
+export type { Type } from "../types/nominal.js";
 export { Cache, type CacheInstance, type CacheOptions } from "./cache.js";
 /** Async communication channel for producer-consumer patterns. */
 export { Channel } from "./channel.js";
@@ -71,12 +88,22 @@ export {
 } from "./rate-limiter.js";
 /** Configurable retry policy namespace with backoff strategies. */
 /** An immutable retry policy describing how and when to retry. */
-export { Retry, type RetryPolicy } from "./retry.js";
+export {
+  Retry,
+  type RetryPolicy,
+} from "./retry.js";
 /** Mutual exclusion lock allowing only one task at a time. */
 /** A mutex instance with acquire and wrap operations. */
 /** Counting semaphore namespace for concurrency control. */
 /** A semaphore instance with acquire, wrap, available, and pending operations. */
-export { Mutex, type MutexInstance, Semaphore, type SemaphoreInstance } from "./semaphore.js";
+/** A release function returned after acquiring a semaphore permit. */
+export {
+  Mutex,
+  type MutexInstance,
+  type Release,
+  Semaphore,
+  type SemaphoreInstance,
+} from "./semaphore.js";
 /** Error returned when a state machine transition is invalid. */
 /** Typed finite state machine with validated transitions. */
 export { InvalidTransition, StateMachine } from "./state-machine.js";
@@ -84,6 +111,9 @@ export { InvalidTransition, StateMachine } from "./state-machine.js";
 export { Stream } from "./stream.js";
 /** Lazy, composable async computation that returns Result on run. */
 export { Task } from "./task.js";
+/** Shared structural interface for Task-shaped values with a `.run()` method. */
+/** Create a TaskLike from a run function. */
+export { makeTask, type TaskLike } from "./task-like.js";
 /** Error returned when a deadline is exceeded. */
 /** Timer namespace for sleep, interval, delay, and deadline operations. */
 export { TimeoutError, Timer } from "./timer.js";

@@ -33,9 +33,13 @@
  */
 /** Pass a value through a sequence of unary functions left-to-right. */
 export function pipe<A>(a: A): A;
+/** Pipe a value through 1 function. */
 export function pipe<A, B>(a: A, ab: (a: A) => B): B;
+/** Pipe a value through 2 functions. */
 export function pipe<A, B, C>(a: A, ab: (a: A) => B, bc: (b: B) => C): C;
+/** Pipe a value through 3 functions. */
 export function pipe<A, B, C, D>(a: A, ab: (a: A) => B, bc: (b: B) => C, cd: (c: C) => D): D;
+/** Pipe a value through 4 functions. */
 export function pipe<A, B, C, D, E>(
   a: A,
   ab: (a: A) => B,
@@ -43,6 +47,7 @@ export function pipe<A, B, C, D, E>(
   cd: (c: C) => D,
   de: (d: D) => E,
 ): E;
+/** Pipe a value through 5 functions. */
 export function pipe<A, B, C, D, E, F>(
   a: A,
   ab: (a: A) => B,
@@ -51,6 +56,7 @@ export function pipe<A, B, C, D, E, F>(
   de: (d: D) => E,
   ef: (e: E) => F,
 ): F;
+/** Pipe a value through 6 functions. */
 export function pipe<A, B, C, D, E, F, G>(
   a: A,
   ab: (a: A) => B,
@@ -60,6 +66,7 @@ export function pipe<A, B, C, D, E, F, G>(
   ef: (e: E) => F,
   fg: (f: F) => G,
 ): G;
+/** Pipe a value through 7 functions. */
 export function pipe<A, B, C, D, E, F, G, H>(
   a: A,
   ab: (a: A) => B,
@@ -70,6 +77,7 @@ export function pipe<A, B, C, D, E, F, G, H>(
   fg: (f: F) => G,
   gh: (g: G) => H,
 ): H;
+/** Pipe a value through 8 functions. */
 export function pipe<A, B, C, D, E, F, G, H, I>(
   a: A,
   ab: (a: A) => B,
@@ -102,14 +110,18 @@ export function pipe(initial: unknown, ...fns: ((arg: unknown) => unknown)[]): u
  */
 /** Compose functions left-to-right, returning a new function. */
 export function flow<A, B>(ab: (a: A) => B): (a: A) => B;
+/** Compose 2 functions left-to-right. */
 export function flow<A, B, C>(ab: (a: A) => B, bc: (b: B) => C): (a: A) => C;
+/** Compose 3 functions left-to-right. */
 export function flow<A, B, C, D>(ab: (a: A) => B, bc: (b: B) => C, cd: (c: C) => D): (a: A) => D;
+/** Compose 4 functions left-to-right. */
 export function flow<A, B, C, D, E>(
   ab: (a: A) => B,
   bc: (b: B) => C,
   cd: (c: C) => D,
   de: (d: D) => E,
 ): (a: A) => E;
+/** Compose 5 functions left-to-right. */
 export function flow<A, B, C, D, E, F>(
   ab: (a: A) => B,
   bc: (b: B) => C,
@@ -117,6 +129,7 @@ export function flow<A, B, C, D, E, F>(
   de: (d: D) => E,
   ef: (e: E) => F,
 ): (a: A) => F;
+/** Compose 6 functions left-to-right. */
 export function flow<A, B, C, D, E, F, G>(
   ab: (a: A) => B,
   bc: (b: B) => C,

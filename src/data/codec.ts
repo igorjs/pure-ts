@@ -126,9 +126,11 @@ const booleanCodec: CodecType<unknown, boolean> = createCodec<unknown, boolean>(
 
 // ── Composite codecs ────────────────────────────────────────────────────────
 
-type CodecShape = Record<string, CodecType<unknown, unknown>>;
+/** @internal A record of codecs keyed by field name, used to define object codec shapes. */
+export type CodecShape = Record<string, CodecType<unknown, unknown>>;
 
-type DecodedShape<T extends CodecShape> = {
+/** @internal Infer the decoded output type from a {@link CodecShape} definition. */
+export type DecodedShape<T extends CodecShape> = {
   [K in keyof T]: T[K] extends CodecType<unknown, infer O> ? O : never;
 };
 

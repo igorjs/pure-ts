@@ -15,19 +15,32 @@
 // ── Types ───────────────────────────────────────────────────────────────────
 
 /** Log severity levels, ordered from least to most severe. */
-type LogLevel = "debug" | "info" | "warn" | "error";
+export type LogLevel =
+  /** Verbose diagnostic output for development. */
+  | "debug"
+  /** Normal operational messages. */
+  | "info"
+  /** Potential issues that deserve attention. */
+  | "warn"
+  /** Failures requiring immediate action. */
+  | "error";
 
-/** A structured log record. */
-interface LogRecord {
+/** A structured log record passed to log sinks. */
+export interface LogRecord {
+  /** Severity level of the log entry. */
   readonly level: LogLevel;
+  /** Human-readable log message. */
   readonly message: string;
+  /** Logger name identifying the source. */
   readonly name: string;
+  /** ISO 8601 timestamp of when the entry was created. */
   readonly timestamp: string;
+  /** Additional structured key-value context. */
   readonly context: Readonly<Record<string, unknown>>;
 }
 
 /** Function that receives a log record and outputs it somewhere. */
-type LogSink = (record: LogRecord) => void;
+export type LogSink = (record: LogRecord) => void;
 
 /** Numeric severity for level comparison. */
 const LEVEL_VALUE: Readonly<Record<LogLevel, number>> = {
@@ -142,10 +155,14 @@ const createLogger = (
 // ── Public namespace ────────────────────────────────────────────────────────
 
 /** Options for creating a Logger. */
-interface LoggerOptions {
+export interface LoggerOptions {
+  /** Logger name identifying the source component. */
   readonly name: string;
+  /** Minimum severity level to emit (default: "info"). */
   readonly level?: LogLevel;
+  /** Output sink function (default: JSON to stdout). */
   readonly sink?: LogSink;
+  /** Base context fields included in every log record. */
   readonly context?: Record<string, unknown>;
 }
 

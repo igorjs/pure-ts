@@ -15,6 +15,7 @@
  * All runtime access is structural: no type declarations imported.
  */
 
+import { makeTask, type TaskLike } from "../async/task-like.js";
 import type { Result } from "../core/result.js";
 import { Err, Ok } from "../core/result.js";
 import { ErrType, type ErrTypeConstructor } from "../types/error.js";
@@ -23,15 +24,6 @@ import { ErrType, type ErrTypeConstructor } from "../types/error.js";
 
 /** DNS resolution failed. */
 export const DnsError: ErrTypeConstructor<"DnsError", string> = ErrType("DnsError");
-
-// -- Task-like ---------------------------------------------------------------
-
-/** Task-like interface for lazy async DNS resolution. */
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
-const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
 
 // -- DNS record --------------------------------------------------------------
 
@@ -82,7 +74,8 @@ const getNodeDns = async (): Promise<NodeDns | null> => {
 
 // -- Unified operations ------------------------------------------------------
 
-type DnsType = "A" | "AAAA" | "CNAME" | "MX" | "TXT";
+/** DNS record type for resolution queries. */
+export type DnsType = "A" | "AAAA" | "CNAME" | "MX" | "TXT";
 
 const lookupHost = async (hostname: string): Promise<Result<DnsRecord, ErrType<"DnsError">>> => {
   const deno = getDenoDns();
@@ -162,7 +155,7 @@ export const Dns: {
   ) => TaskLike<readonly string[], ErrType<"DnsError">>;
 } = {
   lookup: (hostname: string): TaskLike<DnsRecord, ErrType<"DnsError">> =>
-    mkTask(() => lookupHost(hostname)),
+    makeTask(() => lookupHost(hostname)),
   resolve: (hostname: string, type?: DnsType): TaskLike<readonly string[], ErrType<"DnsError">> =>
-    mkTask(() => resolveRecords(hostname, type ?? "A")),
+    makeTask(() => resolveRecords(hostname, type ?? "A")),
 };

@@ -11,7 +11,7 @@
  * and Bun with no imports required.
  */
 
-import type { Result } from "../core/result.js";
+import { makeTask, type TaskLike } from "../async/task-like.js";
 import { Err, Ok } from "../core/result.js";
 import { ErrType, type ErrTypeConstructor } from "../types/error.js";
 
@@ -20,15 +20,6 @@ import { ErrType, type ErrTypeConstructor } from "../types/error.js";
 /** Compression or decompression operation failed. */
 export const CompressionError: ErrTypeConstructor<"CompressionError", string> =
   ErrType("CompressionError");
-
-// ── Task-like ───────────────────────────────────────────────────────────────
-
-/** Task-like interface. */
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
-const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
 
 // ── Structural types for Compression Streams API ────────────────────────────
 // Why: tsconfig uses "lib": ["es2024"] without DOM types. Define the
@@ -119,7 +110,7 @@ const compressWithFormat = (
   data: Uint8Array,
   format: string,
 ): TaskLike<Uint8Array, ErrType<"CompressionError">> =>
-  mkTask(async () => {
+  makeTask(async () => {
     try {
       const Ctor = getCompressionStream();
       return Ok(await pipeThrough(data, new Ctor(format)));
@@ -132,7 +123,7 @@ const decompressWithFormat = (
   data: Uint8Array,
   format: string,
 ): TaskLike<Uint8Array, ErrType<"CompressionError">> =>
-  mkTask(async () => {
+  makeTask(async () => {
     try {
       const Ctor = getDecompressionStream();
       return Ok(await pipeThrough(data, new Ctor(format)));

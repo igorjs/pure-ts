@@ -36,7 +36,5 @@
  *     .refine(s => s.startsWith('u_'), 'UserId format')
  *     .transform(s => s as Type<'UserId', string>);
  */
-declare const __brand: unique symbol;
-
 /** Phantom-branded nominal type. `Type<Name, Base>` brands `Base` with a compile-time-only `Name` tag. */
-export type Type<Name extends string, Base> = Base & { readonly [__brand]: Name };
+export type Type<Name extends string, Base> = Base & { readonly __brand: Name };

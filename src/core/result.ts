@@ -5,9 +5,10 @@
  * `Result<T, E>` instead of throwing. This eliminates invisible control
  * flow (try/catch) and makes error paths explicit in the type system.
  *
- * Two concrete classes (`OkImpl`, `ErrImpl`) share a common interface
- * (`ResultMethods`). Methods live on prototypes so instances carry only
- * their payload, keeping GC pressure low.
+ * Two public interfaces (`Ok`, `Err`) define the contract. Module-private
+ * classes (`OkImpl`, `ErrImpl`) provide the implementation. Methods live
+ * on prototypes so instances carry only their payload, keeping GC pressure
+ * low.
  *
  * The `Result` const/type merge lets callers use `Result.tryCatch()` in
  * value position and `Result<T, E>` in type position, mirroring Rust.
@@ -15,6 +16,121 @@
 
 import type { Option } from "./option.js";
 import { None, Some } from "./option.js";
+
+/** Pattern-match arms for {@link Result.match}. */
+export interface ResultMatcher<T, E, U> {
+  /** Handler for the Ok variant. */
+  readonly Ok: (value: T) => U;
+  /** Handler for the Err variant. */
+  readonly Err: (error: E) => U;
+}
+
+// ── Public interfaces ────────────────────────────────────────────────────────
+
+/**
+ * The success variant of {@link Result}.
+ *
+ * Wraps a value of type `T` and provides monadic chaining (`map`, `flatMap`),
+ * safe extraction (`unwrap`, `unwrapOr`), and pattern matching (`match`).
+ *
+ * Construct via the {@link Ok} factory: `Ok(42)`.
+ */
+export interface Ok<T, E> {
+  /** Discriminant tag for pattern matching. */
+  readonly tag: "Ok";
+  /** Whether this is an Ok variant. Always `true`. */
+  readonly isOk: true;
+  /** Whether this is an Err variant. Always `false`. */
+  readonly isErr: false;
+  /** The wrapped success value. */
+  readonly value: T;
+
+  /** Apply `fn` to the success value, returning a new `Ok`. */
+  map<U>(fn: (value: T) => U): Result<U, E>;
+  /** No-op on `Ok`: the error channel is empty. */
+  mapErr<F>(fn: (error: E) => F): Result<T, F>;
+  /** Chain into a dependent computation that may fail. */
+  flatMap<U>(fn: (value: T) => Result<U, E>): Result<U, E>;
+  /** Run a side-effect on the success value without altering the Result. */
+  tap(fn: (value: T) => void): Result<T, E>;
+  /** No-op on `Ok`: no error to tap. */
+  tapErr(fn: (error: E) => void): Result<T, E>;
+  /** Extract the success value. */
+  unwrap(): T;
+  /** Return the success value, ignoring the fallback. */
+  unwrapOr(fallback: T): T;
+  /** Return the success value, ignoring the recovery function. */
+  unwrapOrElse(fn: (error: E) => T): T;
+  /** Throws: there is no error to extract from `Ok`. */
+  unwrapErr(): never;
+  /** Exhaustively handle both variants. */
+  match<U>(m: ResultMatcher<T, E, U>): U;
+  /** Convert to `Some(value)`. */
+  toOption(): Option<T>;
+  /** Combine two `Ok` values into a tuple, short-circuiting on `Err`. */
+  zip<U>(other: Result<U, E>): Result<[T, U], E>;
+  /**
+   * Applicative apply: apply a wrapped function to this value.
+   *
+   * If `fnResult` is `Ok(fn)`, returns `Ok(fn(this.value))`.
+   * If `fnResult` is `Err`, propagates the error.
+   */
+  ap<U>(fnResult: Result<(value: T) => U, E>): Result<U, E>;
+  /** Serialize as `{ tag: 'Ok', value: T }`. */
+  toJSON(): { tag: "Ok"; value: T };
+  /** Human-readable string representation. */
+  toString(): string;
+}
+
+/**
+ * The failure variant of {@link Result}.
+ *
+ * Wraps an error of type `E`. All value-channel operations (`map`, `flatMap`,
+ * `unwrap`) short-circuit, preserving the error.
+ *
+ * Construct via the {@link Err} factory: `Err('not found')`.
+ */
+export interface Err<T, E> {
+  /** Discriminant tag for pattern matching. */
+  readonly tag: "Err";
+  /** Whether this is an Ok variant. Always `false`. */
+  readonly isOk: false;
+  /** Whether this is an Err variant. Always `true`. */
+  readonly isErr: true;
+  /** The wrapped error value. */
+  readonly error: E;
+
+  /** No-op on `Err`: the value channel is empty. */
+  map<U>(fn: (value: T) => U): Result<U, E>;
+  /** Apply `fn` to the error, returning a new `Err`. */
+  mapErr<F>(fn: (error: E) => F): Result<T, F>;
+  /** Short-circuit: propagate this `Err` without calling `fn`. */
+  flatMap<U>(fn: (value: T) => Result<U, E>): Result<U, E>;
+  /** No-op on `Err`: no value to tap. */
+  tap(fn: (value: T) => void): Result<T, E>;
+  /** Run a side-effect on the error without altering the Result. */
+  tapErr(fn: (error: E) => void): Result<T, E>;
+  /** Throws: there is no success value to extract from `Err`. */
+  unwrap(): never;
+  /** Return the fallback since this is an `Err`. */
+  unwrapOr(fallback: T): T;
+  /** Recover from the error by calling `fn`. */
+  unwrapOrElse(fn: (error: E) => T): T;
+  /** Extract the error value. */
+  unwrapErr(): E;
+  /** Exhaustively handle both variants. */
+  match<U>(m: ResultMatcher<T, E, U>): U;
+  /** Convert to `None` (the success value is absent). */
+  toOption(): Option<T>;
+  /** Short-circuit: propagate this `Err`. */
+  zip<U>(other: Result<U, E>): Result<[T, U], E>;
+  /** Short-circuit: propagate this `Err`. */
+  ap<U>(fnResult: Result<(value: T) => U, E>): Result<U, E>;
+  /** Serialize as `{ tag: 'Err', error: E }`. */
+  toJSON(): { tag: "Err"; error: E };
+  /** Human-readable string representation. */
+  toString(): string;
+}
 
 /**
  * A discriminated union representing either success (`Ok<T>`) or failure (`Err<E>`).
@@ -29,15 +145,9 @@ import { None, Some } from "./option.js";
  * const age = parsed.unwrapOr(0);
  * ```
  */
-export type Result<T, E> = OkImpl<T, E> | ErrImpl<T, E>;
+export type Result<T, E> = Ok<T, E> | Err<T, E>;
 
-/** Pattern-match arms for {@link Result.match}. */
-export interface ResultMatcher<T, E, U> {
-  /** Handler for the Ok variant. */
-  readonly Ok: (value: T) => U;
-  /** Handler for the Err variant. */
-  readonly Err: (error: E) => U;
-}
+// ── Private implementation ───────────────────────────────────────────────────
 
 /**
  * Shared contract for both `Ok` and `Err` variants.
@@ -47,211 +157,136 @@ export interface ResultMatcher<T, E, U> {
  * narrowing via `.isOk` / `.isErr` without casting.
  */
 interface ResultMethods<T, E> {
-  /** Transform the success value. */
   map<U>(fn: (value: T) => U): Result<U, E>;
-  /** Transform the error value. */
   mapErr<F>(_fn: (error: E) => F): Result<T, F>;
-  /** Chain into a dependent computation that may fail. */
   flatMap<U>(fn: (value: T) => Result<U, E>): Result<U, E>;
-  /** Run a side-effect on the success value without altering the Result. */
   tap(fn: (value: T) => void): Result<T, E>;
-  /** Run a side-effect on the error without altering the Result. */
   tapErr(_fn: (error: E) => void): Result<T, E>;
-  /** Extract the value or throw if Err. */
   unwrap(): T;
-  /** Extract the value or return the fallback. */
   unwrapOr(_fallback: T): T;
-  /** Extract the value or compute a fallback from the error. */
   unwrapOrElse(_fn: (error: E) => T): T;
-  /** Extract the error or throw if Ok. */
   unwrapErr(): never | E;
-  /** Pattern match on Ok or Err. */
   match<U>(m: ResultMatcher<T, E, U>): U;
-  /** Convert to Option: Ok becomes Some, Err becomes None. */
   toOption(): Option<T>;
-  /** Pair this value with another Result's value. */
   zip<U>(other: Result<U, E>): Result<[T, U], E>;
-  /** Apply a wrapped function to this value. */
   ap<U>(fnResult: Result<(value: T) => U, E>): Result<U, E>;
-  /** Serialize to a JSON-safe tagged object. */
   toJSON(): { tag: "Ok"; value: T } | { tag: "Err"; error: E };
-  /** Human-readable string representation. */
   toString(): string;
 }
 
-/**
- * The success variant of {@link Result}.
- *
- * Wraps a value of type `T` and provides monadic chaining (`map`, `flatMap`),
- * safe extraction (`unwrap`, `unwrapOr`), and pattern matching (`match`).
- *
- * Construct via the {@link Ok} factory rather than `new OkImpl(...)`.
- */
-export class OkImpl<T, E> implements ResultMethods<T, E> {
-  /** Discriminant tag for pattern matching. */
+class OkImpl<T, E> implements Ok<T, E>, ResultMethods<T, E> {
   readonly tag = "Ok" as const;
-  constructor(/** The wrapped success value. */ readonly value: T) {}
+  constructor(readonly value: T) {}
 
-  /** Whether this is an Ok variant. Always true. */
   get isOk(): true {
     return true;
   }
-  /** Whether this is an Err variant. Always false. */
   get isErr(): false {
     return false;
   }
 
-  /** Apply `fn` to the success value, returning a new `Ok`. */
   map<U>(fn: (value: T) => U): Result<U, E> {
     return new OkImpl(fn(this.value));
   }
-  /** No-op on `Ok`: the error channel is empty. */
   mapErr<F>(_fn: (error: E) => F): Result<T, F> {
     return castOk(this);
   }
-  /** Chain into a dependent computation that may fail. */
   flatMap<U>(fn: (value: T) => Result<U, E>): Result<U, E> {
     return fn(this.value);
   }
-  /** Run a side-effect on the success value without altering the Result. */
   tap(fn: (value: T) => void): Result<T, E> {
     fn(this.value);
     return this;
   }
-  /** No-op on `Ok`: no error to tap. */
   tapErr(_fn: (error: E) => void): Result<T, E> {
     return this;
   }
-  /** Extract the success value. */
   unwrap(): T {
     return this.value;
   }
-  /** Return the success value, ignoring the fallback. */
   unwrapOr(_fallback: T): T {
     return this.value;
   }
-  /** Return the success value, ignoring the recovery function. */
   unwrapOrElse(_fn: (error: E) => T): T {
     return this.value;
   }
-  /** Throws: there is no error to extract from `Ok`. */
   unwrapErr(): never {
     throw new TypeError(`unwrapErr called on Ok(${String(this.value)})`);
   }
-  /** Exhaustively handle both variants. */
   match<U>(m: ResultMatcher<T, E, U>): U {
     return m.Ok(this.value);
   }
-  /** Convert to `Some(value)`. */
   toOption(): Option<T> {
     return Some(this.value);
   }
-
-  /** Combine two `Ok` values into a tuple, short-circuiting on `Err`. */
   zip<U>(other: Result<U, E>): Result<[T, U], E> {
     return other.isOk ? new OkImpl([this.value, other.value]) : castErr(other);
   }
-
-  /**
-   * Applicative apply: apply a wrapped function to this value.
-   *
-   * If `fnResult` is `Ok(fn)`, returns `Ok(fn(this.value))`.
-   * If `fnResult` is `Err`, propagates the error.
-   */
   ap<U>(fnResult: Result<(value: T) => U, E>): Result<U, E> {
     return fnResult.isOk ? new OkImpl(fnResult.value(this.value)) : castErr(fnResult);
   }
-
-  /** Serialize as `{ tag: 'Ok', value: T }`. */
   toJSON(): { tag: "Ok"; value: T } {
     return { tag: "Ok", value: this.value };
   }
-  /** Human-readable string representation. */
   toString(): string {
     return `Ok(${String(this.value)})`;
   }
 }
 
-/**
- * The failure variant of {@link Result}.
- *
- * Wraps an error of type `E`. All value-channel operations (`map`, `flatMap`,
- * `unwrap`) short-circuit, preserving the error.
- *
- * Construct via the {@link Err} factory rather than `new ErrImpl(...)`.
- */
-export class ErrImpl<T, E> implements ResultMethods<T, E> {
-  /** Discriminant tag for pattern matching. */
+class ErrImpl<T, E> implements Err<T, E>, ResultMethods<T, E> {
   readonly tag = "Err" as const;
-  constructor(/** The wrapped error value. */ readonly error: E) {}
+  constructor(readonly error: E) {}
 
-  /** Whether this is an Ok variant. Always false. */
   get isOk(): false {
     return false;
   }
-  /** Whether this is an Err variant. Always true. */
   get isErr(): true {
     return true;
   }
 
-  /** No-op on `Err`: the value channel is empty. */
   map<U>(_fn: (value: T) => U): Result<U, E> {
     return castErr(this);
   }
-  /** Apply `fn` to the error, returning a new `Err`. */
   mapErr<F>(fn: (error: E) => F): Result<T, F> {
     return new ErrImpl(fn(this.error));
   }
-  /** Short-circuit: propagate this `Err` without calling `fn`. */
   flatMap<U>(_fn: (value: T) => Result<U, E>): Result<U, E> {
     return castErr(this);
   }
-  /** No-op on `Err`: no value to tap. */
   tap(_fn: (value: T) => void): Result<T, E> {
     return this;
   }
-  /** Run a side-effect on the error without altering the Result. */
   tapErr(fn: (error: E) => void): Result<T, E> {
     fn(this.error);
     return this;
   }
-  /** Throws: there is no success value to extract from `Err`. */
   unwrap(): never {
     throw new TypeError(`unwrap called on Err(${String(this.error)})`);
   }
-  /** Return the fallback since this is an `Err`. */
   unwrapOr(fallback: T): T {
     return fallback;
   }
-  /** Recover from the error by calling `fn`. */
   unwrapOrElse(fn: (error: E) => T): T {
     return fn(this.error);
   }
-  /** Extract the error value. */
   unwrapErr(): E {
     return this.error;
   }
-  /** Exhaustively handle both variants. */
   match<U>(m: ResultMatcher<T, E, U>): U {
     return m.Err(this.error);
   }
-  /** Convert to `None` (the success value is absent). */
   toOption(): Option<T> {
     return None;
   }
-  /** Short-circuit: propagate this `Err`. */
   zip<U>(_other: Result<U, E>): Result<[T, U], E> {
     return castErr(this);
   }
-  /** Short-circuit: propagate this `Err`. */
   ap<U>(_fnResult: Result<(value: T) => U, E>): Result<U, E> {
     return castErr(this);
   }
-  /** Serialize as `{ tag: 'Err', error: E }`. */
   toJSON(): { tag: "Err"; error: E } {
     return { tag: "Err", error: this.error };
   }
-  /** Human-readable string representation. */
   toString(): string {
     return `Err(${String(this.error)})`;
   }
@@ -259,7 +294,7 @@ export class ErrImpl<T, E> implements ResultMethods<T, E> {
 
 // ── Variance helpers ─────────────────────────────────────────────────────────
 //
-// Result<T, E> is invariant in both T and E because OkImpl and ErrImpl carry
+// Result<T, E> is invariant in both T and E because Ok and Err carry
 // both type parameters in their method signatures. When propagating an Err
 // through a map/flatMap that changes T, or an Ok through a mapErr that changes
 // E, we need to widen the unused parameter.
@@ -272,11 +307,10 @@ export class ErrImpl<T, E> implements ResultMethods<T, E> {
 // Result<never, E> is assignable to Result<U, E> via bivariant method compat.
 
 /** Widen the value-type of an Err result. Returns Result<never, E>. */
-export const castErr = <T, E>(r: ErrImpl<T, E>): Result<never, E> =>
-  r as unknown as Result<never, E>;
+export const castErr = <T, E>(r: Err<T, E>): Result<never, E> => r as unknown as Result<never, E>;
 
 /** Widen the error-type of an Ok result. Returns Result<T, never>. */
-export const castOk = <T, E>(r: OkImpl<T, E>): Result<T, never> => r as unknown as Result<T, never>;
+export const castOk = <T, E>(r: Ok<T, E>): Result<T, never> => r as unknown as Result<T, never>;
 
 /**
  * Create a successful {@link Result} wrapping `value`.

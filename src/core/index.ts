@@ -26,7 +26,14 @@ export { Match } from "./match.js";
 /** Discriminated union representing a value that may or may not exist. */
 /** Pattern-match arms for Option.match. */
 /** Present variant constructor: wrap a value in Option. */
-export { None, Option, type OptionMatcher, Some } from "./option.js";
+export {
+  None,
+  type NoneVariant,
+  Option,
+  type OptionMatcher,
+  Some,
+  type SomeVariant,
+} from "./option.js";
 /** Typed ordering and comparison typeclass. */
 export { Ord } from "./ord.js";
 /** Compose functions left-to-right into a new function (point-free). */

@@ -22,6 +22,7 @@ import { Err } from "../core/result.js";
 import type { Duration } from "../types/duration.js";
 import { Duration as D } from "../types/duration.js";
 import { ErrType, type ErrTypeConstructor } from "../types/error.js";
+import type { TaskLike } from "./task-like.js";
 
 // ── Error types ─────────────────────────────────────────────────────────────
 
@@ -55,11 +56,6 @@ export interface CircuitBreakerPolicy {
 }
 
 // ── Instance ────────────────────────────────────────────────────────────────
-
-/** Task-like interface to avoid direct Task import. */
-type TaskLike<T, E> = {
-  readonly run: () => Promise<Result<T, E>>;
-};
 
 /**
  * A stateful circuit breaker instance.

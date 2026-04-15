@@ -11,6 +11,7 @@
  * with Retry, CircuitBreaker, and RateLimiter.
  */
 
+import { makeTask, type TaskLike } from "./async/task-like.js";
 import type { Result } from "./core/result.js";
 import { castErr, Err, Ok } from "./core/result.js";
 import { ErrType, type ErrTypeConstructor } from "./types/error.js";
@@ -31,17 +32,13 @@ export type ClientError = ErrType<"NetworkError"> | ErrType<"HttpError"> | ErrTy
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-/** Task-like interface. */
-interface TaskLike<T, E> {
-  readonly run: () => Promise<Result<T, E>>;
-}
-
-const mkTask = <T, E>(run: () => Promise<Result<T, E>>): TaskLike<T, E> => ({ run });
-
-/** Request options for the client. */
-interface ClientRequestOptions {
+/** Request options for individual HTTP client methods (headers, body, signal). */
+export interface ClientRequestOptions {
+  /** Custom headers to include in the request. */
   readonly headers?: Readonly<Record<string, string>>;
+  /** Request body as a string, stream, or null. */
   readonly body?: string | ReadableStream<Uint8Array> | null;
+  /** Abort signal to cancel the request. */
   readonly signal?: AbortSignal;
 }
 
@@ -192,7 +189,7 @@ const createClient = (config: ClientOptions = {}): ClientInstance => {
     path: string,
     options?: ClientRequestOptions,
   ): TaskLike<ClientResponse, ClientError> =>
-    mkTask(async (): Promise<Result<ClientResponse, ClientError>> => {
+    makeTask(async (): Promise<Result<ClientResponse, ClientError>> => {
       const url = baseUrl + path;
       const headers = { ...baseHeaders, ...options?.headers };
       const init = buildInit(method, headers, options);

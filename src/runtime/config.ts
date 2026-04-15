@@ -16,11 +16,11 @@ import type { SchemaError, SchemaType } from "../data/schema.js";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-/** A schema shape where each field validates a string env value. */
-type ConfigShape = Record<string, SchemaType<unknown>>;
+/** @internal A schema shape where each field validates a string env value. */
+export type ConfigShape = Record<string, SchemaType<unknown>>;
 
-/** Infer the output type from a config shape. */
-type InferConfig<T extends ConfigShape> = {
+/** @internal Infer the output type from a config shape. */
+export type InferConfig<T extends ConfigShape> = {
   readonly [K in keyof T]: T[K] extends SchemaType<infer U> ? U : never;
 };
 

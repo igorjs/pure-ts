@@ -8,6 +8,16 @@
  * control flow.
  */
 
+/** Re-exported so public signatures that reference TaskLike are visible from this entrypoint. */
+export type { TaskLike } from "../async/task-like.js";
+/** Re-exported so public signatures that reference Option are visible from this entrypoint. */
+export type { NoneVariant, Option, OptionMatcher, SomeVariant } from "../core/option.js";
+// ── Cross-module type dependencies ──────────────
+/** Re-exported so public signatures that reference Result are visible from this entrypoint. */
+/** Re-exported so public signatures that reference Ok / Err are visible from this entrypoint. */
+export type { Err, Ok, Result, ResultMatcher } from "../core/result.js";
+/** Re-exported so public signatures that reference ErrType / ErrTypeConstructor are visible from this entrypoint. */
+export type { ErrType, ErrTypeConstructor } from "../types/error.js";
 /** Structured cloning namespace using the web standard algorithm. */
 /** Error returned when a deep clone operation fails. */
 export { Clone, CloneError } from "./clone.js";
@@ -20,7 +30,8 @@ export { Crypto, CryptoError } from "./crypto.js";
 /** Cross-runtime DNS resolution namespace returning Task. */
 /** Error returned when DNS resolution fails. */
 /** A resolved DNS address with IP family. */
-export { Dns, DnsError, type DnsRecord } from "./dns.js";
+/** DNS record type for resolution queries (A, AAAA, CNAME, MX, TXT). */
+export { Dns, DnsError, type DnsRecord, type DnsType } from "./dns.js";
 /** Base64, hex, and UTF-8 encoding and decoding namespace. */
 /** Error returned when an encoding or decoding operation fails. */
 export { Encoding, EncodingError } from "./encoding.js";
