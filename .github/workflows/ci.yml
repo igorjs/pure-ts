@@ -36,6 +36,9 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Bundle size / tree-shaking
+        run: node tests/bundle-size.mjs
+
       - name: Type tests
         run: pnpm run test:types
 

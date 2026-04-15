@@ -153,6 +153,7 @@
       "includes": [
         "tests/runtime-smoke.mjs",
         "tests/web-smoke.mjs",
+        "tests/bundle-size.mjs",
         "tests/workers/*.mjs",
         "tests/browser/*.mjs"
       ],
