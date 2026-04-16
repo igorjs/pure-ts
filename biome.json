@@ -100,7 +100,32 @@
       }
     }
   },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "overrides": [
+    {
+      "includes": [
+        "src/index.ts",
+        "src/core/index.ts",
+        "src/data/index.ts",
+        "src/async/index.ts",
+        "src/io/index.ts",
+        "src/runtime/index.ts",
+        "src/types/index.ts"
+      ],
+      "assist": {
+        "actions": {
+          "source": {
+            "organizeImports": "off"
+          }
+        }
+      }
+    },
     {
       "includes": [
         "src/data/record.ts",
