@@ -41,34 +41,20 @@ jobs:
       - name: Type tests
         run: pnpm run test:types
 
-  smoke-node-22:
+  smoke-node:
     needs: lint-and-test
     runs-on: ubuntu-latest
-    name: smoke / node-22
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["22", "24"]
+    name: smoke / node-${{ matrix.node-version }}
     steps:
       - uses: actions/checkout@v6
       - run: corepack enable
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
-      - name: Runtime smoke test
-        run: node tests/runtime-smoke.mjs
-      - name: Web smoke test
-        run: node tests/web-smoke.mjs
-
-  smoke-node-24:
-    needs: lint-and-test
-    runs-on: ubuntu-latest
-    name: smoke / node-24
-    steps:
-      - uses: actions/checkout@v6
-      - run: corepack enable
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
