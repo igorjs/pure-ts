@@ -326,3 +326,33 @@ runner.isRunning(); // true
 runner.nextRun();   // Date | undefined
 runner.stop();
 ```
+
+## Timer
+
+Type-safe time-based operations using web standard APIs. Wraps `setTimeout` and `performance.now()` in Task/Stream for lazy, composable timing.
+
+```ts
+import { Timer, Duration } from '@igorjs/pure-ts'
+
+// Sleep for 1 second
+await Timer.sleep(Duration.seconds(1)).run();
+
+// Tick every 500ms, take 5 ticks
+const ticks = await Timer.interval(Duration.milliseconds(500))
+  .take(5)
+  .collect()
+  .run();
+// Ok([0, 1, 2, 3, 4])
+
+// Delay a task by 2 seconds before running it
+await Timer.delay(Duration.seconds(2), myTask).run();
+
+// Race a task against a deadline
+const result = await Timer.deadline(Duration.seconds(5), slowTask).run();
+// Err(TimeoutError('Deadline of 5s exceeded')) if it takes too long
+
+// High-resolution timestamp (performance.now())
+const start = Timer.now();
+doWork();
+const elapsed = Timer.now() - start;
+```

@@ -105,6 +105,21 @@ Url.parse('https://example.com/path?q=1');
 // Ok({ hostname: 'example.com', pathname: '/path', ... })
 ```
 
+## Clone
+
+Type-safe deep cloning via the web standard `structuredClone` API. Returns `Result` instead of throwing on non-cloneable types.
+
+```ts
+import { Clone } from '@igorjs/pure-ts'
+
+const original = { nested: { value: 42 } };
+const cloned = Clone.deep(original);
+// Ok({ nested: { value: 42 } }) - fully independent copy
+
+Clone.deep({ fn: () => {} });
+// Err(CloneError('... could not be cloned')) - functions are not cloneable
+```
+
 ## Dns / Net
 
 Cross-runtime DNS resolution and TCP client.
@@ -114,4 +129,27 @@ import { Dns, Net } from '@igorjs/pure-ts'
 
 const records = await Dns.resolve('example.com', 'A').run();
 const conn = await Net.connect({ host: 'localhost', port: 8080 }).run();
+```
+
+## WebSocket
+
+Type-safe WebSocket routing with event handlers. Defines routes and handlers; actual upgrade is handled by the runtime adapter (Bun, Deno, or Node).
+
+```ts
+import { WebSocket } from '@igorjs/pure-ts'
+
+const ws = WebSocket.router()
+  .route('/chat', {
+    onOpen: conn => conn.send('Welcome!'),
+    onMessage: (conn, msg) => conn.send(`Echo: ${msg}`),
+    onClose: () => console.log('disconnected'),
+  })
+  .route('/notifications', {
+    onOpen: conn => subscribe(conn),
+    onError: (conn, err) => console.log('ws error', err),
+  });
+
+// Pass ws.routes to your runtime adapter
+ws.routes;       // readonly WebSocketRoute[]
+ws.match('/chat'); // WebSocketHandler | undefined
 ```

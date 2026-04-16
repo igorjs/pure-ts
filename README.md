@@ -62,11 +62,11 @@ const content = await File.read('./config.json').run();
 | Layer | Primitives | Docs |
 |-------|------------|------|
 | **Core** | `Result`, `Option`, `pipe`, `flow`, `Match`, `Eq`, `Ord`, `State`, `Lens`, `Iso` | [docs/core.md](docs/core.md) |
-| **Data** | `Record`, `List`, `NonEmptyList`, `Schema`, `Codec`, `ADT` | [docs/data.md](docs/data.md) |
+| **Data** | `Record`, `List`, `NonEmptyList`, `Schema`, `Codec`, `ADT`, `StableVec` | [docs/data.md](docs/data.md) |
 | **Types** | `ErrType`, `Type`, `Duration`, `Cron` | [docs/types.md](docs/types.md) |
-| **Async** | `Task`, `Stream`, `Retry`, `CircuitBreaker`, `StateMachine`, `EventEmitter`, `Pool`, `Queue`, `CronRunner`, and more | [docs/async.md](docs/async.md) |
-| **IO** | `File`, `Command`, `Json`, `Crypto`, `Encoding`, `Client`, `Dns`, `Net` | [docs/io.md](docs/io.md) |
-| **Runtime** | `Server`, `Program`, `Logger`, `Config`, `Os`, `Process`, `Path` | [docs/runtime.md](docs/runtime.md) |
+| **Async** | `Task`, `Stream`, `Lazy`, `Env`, `Timer`, `Retry`, `CircuitBreaker`, `Semaphore`, `Mutex`, `RateLimiter`, `Cache`, `Channel`, `StateMachine`, `EventEmitter`, `Pool`, `Queue`, `CronRunner` | [docs/async.md](docs/async.md) |
+| **IO** | `File`, `Command`, `Json`, `Crypto`, `Encoding`, `Compression`, `Clone`, `Url`, `Client`, `WebSocket`, `Dns`, `Net` | [docs/io.md](docs/io.md) |
+| **Runtime** | `Server`, `Program`, `Logger`, `Config`, `Os`, `Process`, `Path`, `Eol`, `Platform` | [docs/runtime.md](docs/runtime.md) |
 
 [Full documentation with examples](docs/index.md)
 

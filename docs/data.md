@@ -163,3 +163,40 @@ const Shape = ADT({
   Point: null,
 });
 ```
+
+## StableVec
+
+Dense, index-stable collection with O(1) insert, remove, and access. Elements are referenced by handles that survive mutations to other elements.
+
+```ts
+import { StableVec } from '@igorjs/pure-ts'
+
+const vec = StableVec.create<{ x: number; y: number }>();
+const h1 = vec.insert({ x: 1, y: 2 });
+const h2 = vec.insert({ x: 3, y: 4 });
+
+vec.get(h1);     // Some({ x: 1, y: 2 })
+vec.length;      // 2
+
+vec.remove(h1);  // true
+vec.get(h1);     // None (handle invalidated)
+vec.isValid(h1); // false
+vec.length;      // 1
+
+// Dense iteration (no gaps, cache-friendly)
+for (const item of vec) {
+  console.log(item.x, item.y);
+}
+
+// Iterate with handles
+for (const [handle, value] of vec.entries()) {
+  console.log(handle, value);
+}
+
+vec.toArray();   // snapshot as plain array
+vec.clear();     // remove all elements
+```
+
+**When to use:** long-lived collections with frequent insert/remove where external code holds references (game loops, simulations, ECS).
+
+**When NOT to use:** short-lived arrays or ordered collections (removal reorders via swap).
