@@ -170,10 +170,20 @@ const createDenoStdout = (): Stdout | undefined => {
   const deno = getDeno();
   if (deno === undefined) return undefined;
 
+  let columns: number | undefined;
+  let rows: number | undefined;
+  try {
+    const size = deno.consoleSize?.();
+    columns = size?.columns;
+    rows = size?.rows;
+  } catch {
+    // consoleSize throws ENOTTY when no terminal is attached (e.g. CI)
+  }
+
   return {
     write: text => deno.stdout.writeSync(encoder.encode(text)),
-    columns: deno.consoleSize?.()?.columns,
-    rows: deno.consoleSize?.()?.rows,
+    columns,
+    rows,
   };
 };
 
