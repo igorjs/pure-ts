@@ -90,6 +90,17 @@ const testConfig = AppConfig.loadFrom({
 });
 ```
 
+## Platform
+
+Runtime platform detection and OS-aware constants. Works everywhere (Node, Deno, Bun, browsers, edge runtimes) without importing `node:os` or `node:path`.
+
+```ts
+import { Platform } from '@igorjs/pure-ts'
+
+Platform.isWindows; // true on Windows, false elsewhere
+Platform.isPosix;   // true on macOS/Linux/Deno/browsers
+```
+
 ## Os / Process / Path
 
 Cross-runtime OS info, process control, and path utilities.
@@ -118,3 +129,21 @@ Path.parse('/home/user/file.ts');
 
 Eol.normalize('line1\r\nline2'); // 'line1\nline2'
 ```
+
+## Adapter Layer
+
+Cross-runtime modules (File, Command, Terminal, Os, Process, Dns, Net) are backed by an internal adapter layer that normalises runtime differences behind unified interfaces. Public modules delegate to these adapters; the adapters themselves are not re-exported.
+
+```
+Public module          Adapter interface       Implementations
+─────────────          ─────────────────       ───────────────
+File                   Fs                      Deno, Node/Bun
+Command                Subprocess              Deno, Bun, Node
+Terminal               Stdin / Stdout          Deno, Node/Bun
+Os                     OsInfo                  Deno, Node/Bun
+Process                ProcessInfo             Deno, Node/Bun
+Dns                    Dns                     Deno, Node/Bun
+Net                    TcpClient               Deno, Node/Bun
+```
+
+Each adapter has a `resolve*()` function that auto-detects the runtime via `globalThis` structural typing (no `node:` imports). Detection order: Deno first, then Node/Bun, returning `null` when neither is available. Public modules convert `null` into typed `Err` values so consumers never see raw failures.
