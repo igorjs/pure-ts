@@ -13,12 +13,20 @@ const createDenoProcessInfo = (): ProcessInfo | undefined => {
   const deno = getDeno();
   if (deno === undefined) return undefined;
 
+  const denoEnv = (deno as unknown as { env?: { get?(key: string): string | undefined } }).env;
+
   return {
     cwd: () => deno.cwd(),
     pid: deno.pid,
     argv: deno.args,
+    env: key => {
+      try {
+        return denoEnv?.get?.(key);
+      } catch {
+        return undefined;
+      }
+    },
     exit: (code?) => deno.exit(code),
-    // Deno does not expose process uptime or memory usage via the same API
   };
 };
 
@@ -32,6 +40,7 @@ const createNodeProcessInfo = (): ProcessInfo | undefined => {
     cwd: () => proc.cwd(),
     pid: proc.pid,
     argv: proc.argv.slice(2),
+    env: key => proc.env[key],
     exit: (code?) => proc.exit(code),
     uptime: () => proc.uptime(),
     memoryUsage: (): ProcessMemory => {

@@ -140,6 +140,7 @@ export interface ProcessInfo {
   cwd(): string;
   readonly pid: number;
   readonly argv: readonly string[];
+  env(key: string): string | undefined;
   exit(code?: number): never;
   uptime?(): number;
   memoryUsage?(): ProcessMemory;

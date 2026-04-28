@@ -73,6 +73,7 @@ const parseArgv = (argv: readonly string[]): Record<string, string> => {
  * ```ts
  * const dir = Process.cwd();          // Result<string, ProcessError>
  * const id = Process.pid();           // Option<number>
+ * const home = Process.env('HOME');   // Option<string>
  * const args = Process.argv();        // readonly string[]
  * ```
  */
@@ -85,6 +86,13 @@ export const Process: {
   readonly uptime: () => Option<number>;
   /** Get heap and RSS memory usage. */
   readonly memoryUsage: () => Option<MemoryUsage>;
+  /**
+   * Read a single environment variable. Returns None if unset or unavailable.
+   *
+   * Cross-runtime: Node/Bun use `process.env[key]`, Deno uses `Deno.env.get(key)`.
+   * Deno requires `--allow-env` permission; returns None if denied.
+   */
+  readonly env: (key: string) => Option<string>;
   /** Get command-line arguments (excluding runtime and script path). */
   readonly argv: () => readonly string[];
   /** Parse command-line arguments against a schema shape. */
@@ -125,6 +133,12 @@ export const Process: {
     } catch {
       return None;
     }
+  },
+
+  env: (key: string): Option<string> => {
+    if (adapter === undefined) return None;
+    const val = adapter.env(key);
+    return val !== undefined ? Some(val) : None;
   },
 
   argv: (): readonly string[] => adapter?.argv ?? [],

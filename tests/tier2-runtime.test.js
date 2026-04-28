@@ -261,6 +261,24 @@ describe("Process", () => {
     assert.ok(mem.rss > 0, `Expected rss > 0, got ${mem.rss}`);
   });
 
+  it("env: returns Some for existing variable", () => {
+    const result = Process.env("HOME");
+    assert.equal(result.isSome, true);
+    assert.equal(typeof result.unwrap(), "string");
+    assert.ok(result.unwrap().length > 0);
+  });
+
+  it("env: returns None for nonexistent variable", () => {
+    const result = Process.env("PURE_TS_NONEXISTENT_VAR_XYZ");
+    assert.equal(result.isNone, true);
+  });
+
+  it("env: matches process.env value", () => {
+    const result = Process.env("PATH");
+    assert.equal(result.isSome, true);
+    assert.equal(result.unwrap(), process.env.PATH);
+  });
+
   it("argv: returns an array", () => {
     const result = Process.argv();
     assert.ok(Array.isArray(result), "Expected argv to return an array");
