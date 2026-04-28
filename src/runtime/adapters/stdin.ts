@@ -108,11 +108,20 @@ const createNodeStdin = (): Stdin | undefined => {
       });
 
       return new Promise<string | null>(resolve => {
+        let settled = false;
         iface.question(prompt, answer => {
-          iface.close();
-          resolve(answer);
+          if (!settled) {
+            settled = true;
+            iface.close();
+            resolve(answer);
+          }
         });
-        iface.on("close", () => resolve(null));
+        iface.on("close", () => {
+          if (!settled) {
+            settled = true;
+            resolve(null);
+          }
+        });
       });
     },
 
