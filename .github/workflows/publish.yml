@@ -72,12 +72,13 @@ jobs:
       - run: pnpm run build
 
       - name: Publish to npm
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          retry_wait_seconds: 15
-          command: npm publish --provenance --access public
+        run: |
+          for i in 1 2 3; do
+            npm publish --provenance --access public && exit 0
+            echo "::warning::npm publish attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
+          exit 1
 
   publish-gpr:
     needs: verify
@@ -99,12 +100,13 @@ jobs:
       - run: pnpm run build
 
       - name: Publish to GitHub Packages
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          retry_wait_seconds: 15
-          command: pnpm publish --no-git-checks
+        run: |
+          for i in 1 2 3; do
+            pnpm publish --no-git-checks && exit 0
+            echo "::warning::GPR publish attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
+          exit 1
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -118,12 +120,13 @@ jobs:
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
       - name: Publish to JSR
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: npx jsr publish
+        run: |
+          for i in 1 2 3; do
+            npx jsr publish && exit 0
+            echo "::warning::JSR publish attempt $i failed, retrying in 30s..."
+            sleep 30
+          done
+          exit 1
 
   sync-version:
     needs: [publish-npm, publish-gpr, publish-jsr]
