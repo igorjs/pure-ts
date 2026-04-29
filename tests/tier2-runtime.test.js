@@ -279,6 +279,21 @@ describe("Process", () => {
     assert.equal(result.unwrap(), process.env.PATH);
   });
 
+  it("env(): returns all env vars as a record", () => {
+    const all = Process.env();
+    assert.equal(typeof all, "object");
+    assert.ok(Object.keys(all).length > 0);
+    assert.equal(all.PATH, process.env.PATH);
+  });
+
+  it("env(): record has no undefined values", () => {
+    const all = Process.env();
+    for (const val of Object.values(all)) {
+      assert.notEqual(val, undefined);
+      assert.equal(typeof val, "string");
+    }
+  });
+
   it("argv: returns an array", () => {
     const result = Process.argv();
     assert.ok(Array.isArray(result), "Expected argv to return an array");

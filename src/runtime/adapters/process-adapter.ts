@@ -13,19 +13,27 @@ const createDenoProcessInfo = (): ProcessInfo | undefined => {
   const deno = getDeno();
   if (deno === undefined) return undefined;
 
-  const denoEnv = (deno as unknown as { env?: { get?(key: string): string | undefined } }).env;
+  const denoEnv = (
+    deno as unknown as {
+      env?: {
+        get?(key: string): string | undefined;
+        toObject?(): Record<string, string>;
+      };
+    }
+  ).env;
 
   return {
     cwd: () => deno.cwd(),
     pid: deno.pid,
     argv: deno.args,
-    env: key => {
+    env: ((key?: string) => {
       try {
+        if (key === undefined) return denoEnv?.toObject?.() ?? {};
         return denoEnv?.get?.(key);
       } catch {
-        return undefined;
+        return key === undefined ? {} : undefined;
       }
-    },
+    }) as ProcessInfo["env"],
     exit: (code?) => deno.exit(code),
   };
 };
@@ -40,7 +48,16 @@ const createNodeProcessInfo = (): ProcessInfo | undefined => {
     cwd: () => proc.cwd(),
     pid: proc.pid,
     argv: proc.argv.slice(2),
-    env: key => proc.env[key],
+    env: ((key?: string) => {
+      if (key === undefined) {
+        const result: Record<string, string> = {};
+        for (const [k, v] of Object.entries(proc.env)) {
+          if (v !== undefined) result[k] = v;
+        }
+        return result;
+      }
+      return proc.env[key];
+    }) as ProcessInfo["env"],
     exit: (code?) => proc.exit(code),
     uptime: () => proc.uptime(),
     memoryUsage: (): ProcessMemory => {
