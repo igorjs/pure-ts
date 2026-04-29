@@ -9,6 +9,8 @@
 
 Functional application framework for TypeScript. Zero dependencies.
 
+> **Note:** This project is in beta. APIs may change between minor versions until 1.0.
+
 Errors are values, not exceptions. Data is immutable, enforced at runtime. Async is lazy and composable.
 
 ![Node.js](https://img.shields.io/badge/Node.js_22+-339933?logo=nodedotjs&logoColor=white)
