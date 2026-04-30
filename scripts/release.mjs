@@ -10,6 +10,7 @@
  *   node scripts/release.mjs minor    # 0.3.1 -> 0.4.0
  *   node scripts/release.mjs major    # 0.3.1 -> 1.0.0
  *   node scripts/release.mjs 0.4.0    # explicit version
+ *   node scripts/release.mjs minor --yes  # skip confirmation prompt
  *
  * Requires: gh CLI (authenticated), git signing configured.
  */
@@ -28,9 +29,11 @@ const die = (msg) => {
 
 // -- Parse args ---------------------------------------------------------------
 
-const bump = process.argv[2];
+const args = process.argv.slice(2);
+const yesFlag = args.includes("--yes") || args.includes("-y");
+const bump = args.find((a) => !a.startsWith("-"));
 if (!bump) {
-  die("Usage: node scripts/release.mjs <patch|minor|major|x.y.z>");
+  die("Usage: node scripts/release.mjs <patch|minor|major|x.y.z> [--yes]");
 }
 
 // -- Pre-flight checks --------------------------------------------------------
@@ -168,16 +171,18 @@ log("-----------------\n");
 
 // -- Confirm ------------------------------------------------------------------
 
-const readline = await import("node:readline");
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const answer = await new Promise((resolve) => {
-  rl.question(`Proceed with release v${newVersion}? [y/N] `, resolve);
-});
-rl.close();
+if (!yesFlag) {
+  const readline = await import("node:readline");
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise((resolve) => {
+    rl.question(`Proceed with release v${newVersion}? [y/N] `, resolve);
+  });
+  rl.close();
 
-if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
-  log("Aborted.");
-  process.exit(0);
+  if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
+    log("Aborted.");
+    process.exit(0);
+  }
 }
 
 // -- Bump version -------------------------------------------------------------
