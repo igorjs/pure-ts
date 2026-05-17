@@ -74,7 +74,7 @@ jobs:
       - name: Publish to npm
         run: |
           for i in 1 2 3; do
-            npm publish --provenance --access public && exit 0
+            npm publish --provenance --access public --ignore-scripts && exit 0
             echo "::warning::npm publish attempt $i failed, retrying in 15s..."
             sleep 15
           done
@@ -83,7 +83,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-gpr:
-    needs: verify
+    # Gated on publish-npm: npm is canonical; do not advertise the version on GPR if npm failed.
+    needs: publish-npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -104,7 +105,7 @@ jobs:
       - name: Publish to GitHub Packages
         run: |
           for i in 1 2 3; do
-            pnpm publish --no-git-checks && exit 0
+            pnpm publish --no-git-checks --ignore-scripts && exit 0
             echo "::warning::GPR publish attempt $i failed, retrying in 15s..."
             sleep 15
           done
@@ -113,7 +114,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-jsr:
-    needs: verify
+    # Gated on publish-npm: same rationale as publish-gpr.
+    needs: publish-npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

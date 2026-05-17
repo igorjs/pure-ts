@@ -4,9 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version bump (patch, minor, major, or x.y.z)"
-        required: true
+        description: "patch | minor | major | x.y.z. Leave blank to release the version currently in package.json (it must not already be tagged)."
+        required: false
         type: string
+        default: ""
+      dry_run:
+        description: "Dry-run: preview the release without writing files, creating commits/tags, or publishing."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -36,6 +42,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Release
-        run: node scripts/release.mjs ${{ inputs.version }} --yes --skip-test-ci
+        run: node scripts/release.mjs ${{ inputs.version }} --yes --skip-test-ci ${{ inputs.dry_run && "--dry-run" || "" }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

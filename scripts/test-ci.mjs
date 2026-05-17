@@ -1,7 +1,7 @@
 /**
  * test-ci.mjs - Run the full CI test matrix locally.
  *
- * 1. Native tests: Node 22/24/25 (via fnm) + Deno + Bun
+ * 1. Native tests: Node 22/23/24/25/26 (via fnm) + Deno + Bun
  * 2. Docker containers: 4 distros x 3 runtimes (11 containers, parallel)
  *
  * Output is quiet locally, verbose in CI or with --verbose.
@@ -31,7 +31,7 @@ const runDocker = !args.includes("--native");
 
 const COMPOSE_FILE = "docker-compose.test.yml";
 const COMPOSE_PROJECT = "pure-fx-test";
-const NODE_VERSIONS = ["22", "24", "25"];
+const NODE_VERSIONS = ["22", "23", "24", "25", "26"];
 
 let failed = false;
 const dockerErrors = [];

@@ -57,7 +57,7 @@
     "README.md"
   ],
   "sideEffects": false,
-  "packageManager": "pnpm@10.32.1",
+  "packageManager": "pnpm@11.0.9",
   "engines": {
     "node": ">=22"
   },

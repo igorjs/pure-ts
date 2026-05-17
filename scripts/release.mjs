@@ -6,11 +6,20 @@
  * release with the changelog as release notes.
  *
  * Usage:
- *   node scripts/release.mjs patch    # 0.3.1 -> 0.3.2
- *   node scripts/release.mjs minor    # 0.3.1 -> 0.4.0
- *   node scripts/release.mjs major    # 0.3.1 -> 1.0.0
- *   node scripts/release.mjs 0.4.0    # explicit version
+ *   node scripts/release.mjs              # release version currently in package.json
+ *   node scripts/release.mjs patch        # 0.3.1 -> 0.3.2
+ *   node scripts/release.mjs minor        # 0.3.0 -> 0.3.1
+ *   node scripts/release.mjs major        # 0.3.1 -> 1.0.0
+ *   node scripts/release.mjs 0.5.0        # explicit version
  *   node scripts/release.mjs minor --yes  # skip confirmation prompt
+ *   node scripts/release.mjs --dry-run    # preview without changing any state
+ *
+ * Pre-flight checks abort the release if the resulting tag already exists
+ * locally, on origin, or as a published GitHub release.
+ *
+ * Dry-run (-n / --dry-run): every file write, git mutation, and gh release
+ * call is short-circuited and printed as `[dry-run] WOULD ...`. The working
+ * tree, refs, remote, and GitHub state are guaranteed to be unchanged.
  *
  * Requires: gh CLI (authenticated), git signing configured.
  */
@@ -34,17 +43,46 @@ const die = (msg) => {
 
 const args = process.argv.slice(2);
 const yesFlag = args.includes("--yes") || args.includes("-y");
-const skipTestCi = args.includes("--skip-test-ci");
-const bump = args.find((a) => !a.startsWith("-"));
-if (!bump) {
-  die("Usage: node scripts/release.mjs <patch|minor|major|x.y.z> [--yes] [--skip-test-ci]");
+const dryRun = args.includes("--dry-run") || args.includes("-n");
+// In dry-run we skip the test:ci and publish dry-run too — they're slow and
+// not useful for the "what would happen?" reporting.
+const skipTestCi = args.includes("--skip-test-ci") || dryRun;
+const bump = args.find((a) => !a.startsWith("-") && a.length > 0);
+// bump is undefined when no positional arg is passed → release the version
+// currently in package.json without a bump.
+
+if (dryRun) {
+  log("[DRY-RUN] No files will be written and no commits/tags/pushes/releases");
+  log("[DRY-RUN] will be made. Confirmation prompt is also auto-skipped.\n");
 }
+
+// ── Side-effect helpers — short-circuit in dry-run mode ─────────────────────
+
+const writeMut = (path, content) => {
+  if (dryRun) {
+    log(`[dry-run] WOULD write ${path} (${content.length} bytes)`);
+    return;
+  }
+  writeFileSync(path, content);
+};
+
+const runMut = (cmd, opts) => {
+  if (dryRun) {
+    log(`[dry-run] WOULD run \`${cmd}\``);
+    return "";
+  }
+  return run(cmd, opts);
+};
 
 // -- Pre-flight checks --------------------------------------------------------
 
 const status = run("git status --porcelain");
 if (status.length > 0) {
-  die("Working directory is not clean. Commit or stash changes first.");
+  if (dryRun) {
+    log("Working directory is not clean (dry-run mode — proceeding anyway).");
+  } else {
+    die("Working directory is not clean. Commit or stash changes first.");
+  }
 }
 
 const branch = run("git rev-parse --abbrev-ref HEAD");
@@ -107,7 +145,10 @@ const currentVersion = pkg.version;
 const [major, minor, patch] = currentVersion.split(".").map(Number);
 
 let newVersion;
-if (bump === "patch") {
+if (!bump) {
+  newVersion = currentVersion;
+  log(`\nNo version arg given — releasing v${newVersion} from package.json.`);
+} else if (bump === "patch") {
   newVersion = `${major}.${minor}.${patch + 1}`;
 } else if (bump === "minor") {
   newVersion = `${major}.${minor + 1}.0`;
@@ -119,17 +160,88 @@ if (bump === "patch") {
   die(`Invalid bump: "${bump}". Use patch, minor, major, or x.y.z.`);
 }
 
-log(`\nRelease: v${currentVersion} -> v${newVersion}`);
+const newTag = `v${newVersion}`;
+log(bump ? `\nRelease: v${currentVersion} -> ${newTag}` : `\nRelease: ${newTag}`);
 
-// -- Find previous tag --------------------------------------------------------
+// -- Detect existing tag/release state ---------------------------------------
+// A published GitHub release is the point of no return — refuse to recreate.
+// A tag that exists without a release is recoverable: skip the tag step and
+// proceed to publish the missing release.
 
-const lastTag = `v${currentVersion}`;
-let hasLastTag = false;
+let releaseExists = false;
 try {
-  run(`git rev-parse ${lastTag}`);
-  hasLastTag = true;
+  run(`gh release view ${newTag}`);
+  releaseExists = true;
+} catch (e) {
+  if (e.status === undefined) throw e;
+}
+if (releaseExists) {
+  die(`GitHub release ${newTag} already exists. Refusing to recreate.`);
+}
+
+let localTagExists = false;
+try {
+  run(`git rev-parse --verify ${newTag}`);
+  localTagExists = true;
+} catch (e) {
+  if (e.status === undefined) throw e;
+}
+
+const remoteTagExists = run(`git ls-remote --tags origin refs/tags/${newTag}`).length > 0;
+
+const tagExists = localTagExists || remoteTagExists;
+if (tagExists) {
+  log(`Tag ${newTag} already exists (local=${localTagExists}, remote=${remoteTagExists}).`);
+  log("Skipping tag creation; will publish the missing GitHub release only.");
+
+  // Sanity check: when tag exists locally, it should point at HEAD or an
+  // ancestor of HEAD. Anything else means HEAD has moved past the tag and
+  // a re-tag is needed manually.
+  if (localTagExists) {
+    const tagSha = run(`git rev-parse ${newTag}^{commit}`);
+    const headSha = run("git rev-parse HEAD");
+    const isAncestor = (() => {
+      try {
+        run(`git merge-base --is-ancestor ${tagSha} ${headSha}`);
+        return true;
+      } catch (e) {
+        if (e.status === undefined) throw e;
+        return false;
+      }
+    })();
+    if (!isAncestor) {
+      die(
+        `Tag ${newTag} (${tagSha.slice(0, 9)}) is not an ancestor of HEAD (${headSha.slice(0, 9)}). ` +
+          `Refusing to release; re-tag manually if intentional.`,
+      );
+    }
+  }
+}
+
+// -- Find previous release tag (for changelog range) -------------------------
+// The changelog range is "previous tag..release commit". The release commit is
+// HEAD when we're about to create the tag, or the existing tag's commit when
+// the tag was already pushed by an earlier (interrupted) run.
+
+const releaseSha = tagExists
+  ? run(`git rev-parse ${newTag}^{commit}`)
+  : run("git rev-parse HEAD");
+
+// Walk back from the release commit's parent to find the closest existing tag.
+let lastTag = "";
+try {
+  lastTag = run(`git describe --tags --abbrev=0 ${releaseSha}^ 2>/dev/null`).trim();
 } catch {
-  log(`Warning: tag ${lastTag} not found, using all commits on main.`);
+  // No earlier tag — first release.
+}
+let hasLastTag = false;
+if (lastTag) {
+  try {
+    run(`git rev-parse ${lastTag}`);
+    hasLastTag = true;
+  } catch {
+    log(`Warning: tag ${lastTag} not found, using all commits on main.`);
+  }
 }
 
 // -- Generate changelog -------------------------------------------------------
@@ -153,7 +265,7 @@ const CHANGELOG_CATEGORIES = [
   { prefixes: ["perf"], label: "Changed" },
 ];
 
-const range = hasLastTag ? `${lastTag}..HEAD` : "HEAD";
+const range = hasLastTag ? `${lastTag}..${releaseSha}` : releaseSha;
 const rawLog = run(`git log --oneline ${range}`);
 const commits = rawLog
   .split("\n")
@@ -210,7 +322,12 @@ if (uncategorized.length > 0) {
   }
   changelog += "\n";
 }
-changelog += `**Full Changelog**: ${repoUrl}/compare/v${currentVersion}...v${newVersion}\n`;
+// Use lastTag (the previous release tag) as the comparison anchor — when not
+// bumping, currentVersion === newVersion so the old `v${currentVersion}...v${newVersion}`
+// link compared a tag to itself.
+changelog += hasLastTag
+  ? `**Full Changelog**: ${repoUrl}/compare/${lastTag}...${newTag}\n`
+  : `**Full Changelog**: ${repoUrl}/commits/${newTag}\n`;
 
 // -- Generate CHANGELOG.md section (Keep a Changelog format) ------------------
 
@@ -245,7 +362,7 @@ log("----------------------------\n");
 
 // -- Confirm ------------------------------------------------------------------
 
-if (!yesFlag) {
+if (!yesFlag && !dryRun) {
   const readline = await import("node:readline");
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const answer = await new Promise((resolve) => {
@@ -259,15 +376,19 @@ if (!yesFlag) {
   }
 }
 
-// -- Bump version -------------------------------------------------------------
+// -- Bump version (skip if releasing the version already in package.json) ----
 
-log("\nBumping version...");
-pkg.version = newVersion;
-writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+if (newVersion !== currentVersion) {
+  log("\nBumping version...");
+  pkg.version = newVersion;
+  writeMut("package.json", JSON.stringify(pkg, null, 2) + "\n");
 
-const jsr = JSON.parse(readFileSync("jsr.json", "utf8"));
-jsr.version = newVersion;
-writeFileSync("jsr.json", JSON.stringify(jsr, null, 2) + "\n");
+  const jsr = JSON.parse(readFileSync("jsr.json", "utf8"));
+  jsr.version = newVersion;
+  writeMut("jsr.json", JSON.stringify(jsr, null, 2) + "\n");
+} else {
+  log("\nVersion already at target — skipping package.json/jsr.json bump.");
+}
 
 // -- Update test badge in README ----------------------------------------------
 
@@ -280,7 +401,7 @@ try {
       `tests-${testCount}_passing`,
     );
     if (updated !== readme) {
-      writeFileSync("README.md", updated);
+      writeMut("README.md", updated);
       log(`Updated test badge: ${testCount} passing`);
     }
   }
@@ -296,7 +417,7 @@ try {
     .replace(/\| [\d.]+\.x \(latest\)\s*\| Yes\s*\|/, `| ${newVersion.replace(/\.\d+$/, ".x")} (latest) | Yes |`)
     .replace(/\| < [\d.]+\s*\| No\s*\|/, `| < ${newVersion.replace(/\.\d+$/, "")} | No |`);
   if (updated !== security) {
-    writeFileSync("SECURITY.md", updated);
+    writeMut("SECURITY.md", updated);
     log(`Updated SECURITY.md: ${newVersion.replace(/\.\d+$/, ".x")} supported`);
   }
 } catch {
@@ -347,43 +468,68 @@ if (changelogEntry) {
       }
     }
 
-    writeFileSync(changelogPath, content);
+    writeMut(changelogPath, content);
     log("Updated CHANGELOG.md");
   }
 }
 
 // -- Commit, tag, push --------------------------------------------------------
 
-log("Committing...");
-run("git add package.json jsr.json README.md SECURITY.md CHANGELOG.md");
-const commitMsg = `chore: bump to ${newVersion}\n\n${changelog}`;
-writeFileSync(".git/.release-msg.tmp", commitMsg);
+runMut("git add package.json jsr.json README.md SECURITY.md CHANGELOG.md");
+// Read staged status from real working tree (read-only); in dry-run we skip
+// the add above so this returns "" and the commit-step also short-circuits.
+const stagedChanges = dryRun ? "" : run("git diff --staged --name-only");
 const canSign = !!run("git config user.signingkey || true");
 const signFlag = canSign ? "--gpg-sign" : "";
-run(`git commit --signoff ${signFlag} --file .git/.release-msg.tmp`);
-run("rm -f .git/.release-msg.tmp");
 
-log("Tagging...");
-run(canSign ? `git tag -s v${newVersion} -m "v${newVersion}"` : `git tag v${newVersion} -m "v${newVersion}"`);
+if (stagedChanges.length > 0 || dryRun) {
+  log("Committing release-note changes...");
+  const commitMsg = `chore: bump to ${newVersion}\n\n${changelog}`;
+  writeMut(".git/.release-msg.tmp", commitMsg);
+  runMut(`git commit --signoff ${signFlag} --file .git/.release-msg.tmp`);
+  runMut("rm -f .git/.release-msg.tmp");
+} else {
+  log("No file changes to commit — tagging current HEAD directly.");
+}
+
+if (!localTagExists) {
+  log("Tagging...");
+  runMut(canSign ? `git tag -s ${newTag} -m "${newTag}"` : `git tag ${newTag} -m "${newTag}"`);
+} else {
+  log(`Skipping tag creation — ${newTag} already exists locally.`);
+}
 
 log("Pushing...");
-run("git push origin HEAD:refs/heads/main");
-run(`git push origin v${newVersion}`);
+if (stagedChanges.length > 0 || dryRun) {
+  runMut("git push origin HEAD:refs/heads/main");
+}
+if (!remoteTagExists) {
+  runMut(`git push origin ${newTag}`);
+} else {
+  log(`Skipping tag push — ${newTag} already on origin.`);
+}
 
 // -- Create GitHub release ----------------------------------------------------
 
 log("Creating GitHub release...");
-writeFileSync(".git/.release-notes.tmp", changelog);
-run(`gh release create v${newVersion} --title "v${newVersion}" --notes-file .git/.release-notes.tmp`);
-run("rm -f .git/.release-notes.tmp");
+writeMut(".git/.release-notes.tmp", changelog);
+runMut(`gh release create ${newTag} --title "${newTag}" --notes-file .git/.release-notes.tmp`);
+runMut("rm -f .git/.release-notes.tmp");
 
 // -- Clean up filter-branch refs if any ---------------------------------------
 
-try {
-  run("git for-each-ref --format='delete %(refname)' refs/original | git update-ref --stdin");
-} catch {
-  // No refs to clean
+if (!dryRun) {
+  try {
+    run("git for-each-ref --format='delete %(refname)' refs/original | git update-ref --stdin");
+  } catch {
+    // No refs to clean
+  }
 }
 
-log(`\nReleased v${newVersion}`);
-log(`${repoUrl}/releases/tag/v${newVersion}`);
+if (dryRun) {
+  log("\n[DRY-RUN] No state was changed. Re-run without --dry-run to release.");
+  log(`[DRY-RUN] Would publish: ${repoUrl}/releases/tag/${newTag}`);
+} else {
+  log(`\nReleased ${newTag}`);
+  log(`${repoUrl}/releases/tag/${newTag}`);
+}
